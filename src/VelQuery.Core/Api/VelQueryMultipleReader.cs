@@ -21,7 +21,7 @@ public sealed class VelQueryMultipleReader : IAsyncDisposable
     private readonly Action<DbCommand, bool> _complete;
     private DbDataReader? _reader;
     private int _index;
-    private bool _hasCurrent = true;
+    private bool _hasCurrent;
     private bool _faulted;
     private int _busy;
     private bool _disposed;
@@ -32,6 +32,8 @@ public sealed class VelQueryMultipleReader : IAsyncDisposable
         _lease = lease;
         _command = command;
         _reader = reader;
+        // A reader with no columns means the command produced no result sets at all (e.g. only DML statements).
+        _hasCurrent = reader.FieldCount > 0;
         QueryId = queryId;
         _complete = complete;
     }

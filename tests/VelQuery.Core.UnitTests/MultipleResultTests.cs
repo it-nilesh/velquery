@@ -127,7 +127,8 @@ public sealed class MultipleResultTests
         await using (var s = h.Session())
         {
             await using var multi = await s.QueryMultipleAsync(Sql, null, Ct);
-            await Assert.ThrowsAsync<VelQueryMappingException>(() => multi.ReadAsync<int>(Ct));
+            Assert.False(multi.HasMoreResults);
+            await Assert.ThrowsAsync<VelQueryValidationException>(() => multi.ReadAsync<int>(Ct));
         }
 
         h.Db.AssertAllReleasedExactlyOnce();
