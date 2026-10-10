@@ -214,7 +214,7 @@ namespace VelQuery.Generated
                     }
                     return result;
                 }
-                catch (global::System.Exception) when (member >= 0 && reader.IsDBNull(OrdinalOf(member)))
+                catch (global::System.Exception ex) when (member >= 0 && IsNullFailure(reader, member, ex))
                 {
                     throw NullError(member);
                 }
@@ -244,6 +244,20 @@ namespace VelQuery.Generated
                     result.Status = reader.IsDBNull(_o3) ? OnNull<global::Sample.Orders.OrderStatus>("Status") : (_f3 ? (global::Sample.Orders.OrderStatus)reader.GetByte(_o3) : Convert<global::Sample.Orders.OrderStatus>(reader, _o3, "Status"));
                 }
                 return result;
+            }
+
+            // Under SequentialAccess some drivers (Npgsql) reject IsDBNull on a column whose getter already failed. The fast
+            // path only calls a typed getter when the field type matches exactly, so a cast failure there can only mean NULL.
+            private bool IsNullFailure(global::System.Data.Common.DbDataReader reader, int member, global::System.Exception exception)
+            {
+                try
+                {
+                    return reader.IsDBNull(OrdinalOf(member));
+                }
+                catch (global::System.Exception)
+                {
+                    return exception is global::System.InvalidCastException or global::System.Data.SqlTypes.SqlNullValueException;
+                }
             }
 
             private int OrdinalOf(int member)

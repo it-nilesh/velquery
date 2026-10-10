@@ -76,12 +76,28 @@ yet (`tests/VelQuery.NativeAot.Smoke` is planned).
 | Microsoft Entra ID (password, service principal, managed identity, default) | Not yet verified |
 | Encrypt=Strict / certificate validation | Not yet verified (benchmarks use `Encrypt=Optional;TrustServerCertificate=true` on loopback) |
 
-## PostgreSQL (wave 2) — `VelQuery.PostgreSQL`, Npgsql
+## PostgreSQL (wave 2) — `VelQuery.PostgreSQL`, Npgsql 10.0.3
 
-| Capability | Status |
-|---|---|
-| All capabilities | Not started (PRD D-04: shipped as supported only if parity gates pass) |
-| Native AOT (any RID / auth) | Not started |
+Evidence: `tests/VelQuery.PostgreSQL.IntegrationTests` (31 tests) against the official `postgres:17-alpine` image,
+which runs natively on ARM64 and x64 (the real engine, unlike the SQL Edge stand-in used for SQL Server on ARM64).
+Status is **preview** until the full parity matrix passes on CI (PRD D-04).
+
+| Capability | Status | Notes |
+|---|---|---|
+| Buffered query, First/Single/OrDefault, scalar, execute | Verified | `count(*)` is `bigint`; narrowing to `int` is range-checked |
+| Generated `[VelQuerySql]` contracts (SequentialAccess, shuffled SELECT order, strict NULL) | Verified | Same contracts as SQL Server; lower-case column names match case-insensitively |
+| Types: int2/4/8, numeric, bool, text (Unicode), uuid, timestamp, timestamptz, date, time, bytea | Verified | `timestamptz` → UTC `DateTime` → `DateTimeOffset` (lossless); `date` → `DateOnly`; `time` → `TimeOnly`. `numeric` beyond .NET `decimal` range is a driver error |
+| Parameters: inference, NULL, `DateTimeOffset` | Verified | Non-zero offsets are sent as the same instant in UTC (timestamptz stores instants) |
+| Injection resistance | Verified | Includes dollar-quote payloads |
+| Multiple result sets; error in a later statement | Verified | |
+| Procedures via `AsStoredProcedure()` (CALL), INOUT parameters | Verified | PostgreSQL functions are called with plain `SELECT` |
+| Command timeout / caller cancellation | Verified | Timeout → `VelQueryTimeoutException` (NpgsqlException + TimeoutException, or SQLSTATE 57014) |
+| Streaming 100k rows; early exit; pool hygiene | Verified | Pool of 1–2 connections after faults, cancellations and early exits |
+| Session transactions; caller-owned connection/transaction | Verified | |
+| Bulk insert (`BulkInsertAsync`, binary COPY) | Verified | Always all-or-nothing; constraints and triggers always apply. 1M rows ≈ 0.60 s vs 0.58 s raw Npgsql COPY on the dev VM |
+| Generator SQL scanning of PostgreSQL syntax | Partial | `@name` placeholders and `::` casts work; the scanner is T-SQL-lexical, so placeholders inside `ARRAY[...]` or dollar-quoted bodies are not seen (VQ1002 false positive) |
+| Arrays / `ANY(@ids)` parameters | Not yet verified | Npgsql supports them; no VelQuery-specific API or tests yet |
+| Native AOT (any RID / auth) | Not yet verified | Npgsql supports NativeAOT via `NpgsqlSlimDataSourceBuilder`; `CreateDataSource(NpgsqlDataSource)` accepts one |
 
 ## How to update this file
 

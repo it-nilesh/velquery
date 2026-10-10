@@ -6,6 +6,7 @@ namespace VelQuery.Mapping;
 /// Strict, culture-invariant conversion of provider values to CLR types (VQ-FR-016, VQ-FR-029). Only lossless
 /// conversions are performed: identical types, integral widening (range-checked narrowing), integral to
 /// <see cref="decimal"/>/<see cref="double"/>, <see cref="float"/> to <see cref="double"/>, integral to enum,
+/// UTC <see cref="DateTime"/> to <see cref="DateTimeOffset"/> (zero offset),
 /// midnight <see cref="DateTime"/> to <see cref="DateOnly"/>, sub-day <see cref="TimeSpan"/> to
 /// <see cref="TimeOnly"/>, and one-character strings to <see cref="char"/>.
 /// Strings are never parsed and <see cref="System.Convert.ChangeType(object, Type)"/> is never used.
@@ -100,6 +101,11 @@ public static class ValueConverter
             else if (value is float f && target == typeof(double))
             {
                 return (double)f;
+            }
+            else if (value is DateTime { Kind: DateTimeKind.Utc } utc && target == typeof(DateTimeOffset))
+            {
+                // Npgsql surfaces timestamptz as a UTC DateTime; only UTC converts without guessing an offset.
+                return new DateTimeOffset(utc);
             }
             else if (value is DateTime dateTime && target == typeof(DateOnly) && dateTime.TimeOfDay == TimeSpan.Zero)
             {

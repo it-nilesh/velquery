@@ -24,6 +24,15 @@ public sealed class FixupRegressionTests
     }
 
     [Fact]
+    public void Utc_DateTime_converts_to_DateTimeOffset_but_ambiguous_kinds_do_not()
+    {
+        var utc = new DateTime(2026, 10, 11, 8, 30, 0, DateTimeKind.Utc);
+        Assert.Equal(new DateTimeOffset(utc), ValueConverter.Convert<DateTimeOffset>(utc, "q", "ts", true));
+        Assert.Throws<VelQueryMappingException>(() => ValueConverter.Convert<DateTimeOffset>(DateTime.SpecifyKind(utc, DateTimeKind.Unspecified), "q", "ts", true));
+        Assert.Throws<VelQueryMappingException>(() => ValueConverter.Convert<DateTimeOffset>(DateTime.SpecifyKind(utc, DateTimeKind.Local), "q", "ts", true));
+    }
+
+    [Fact]
     public void Lossy_date_time_and_char_conversions_are_rejected()
     {
         Assert.Throws<VelQueryMappingException>(() => ValueConverter.Convert<DateOnly>(new DateTime(2026, 10, 10, 1, 0, 0), "q", "d", true));

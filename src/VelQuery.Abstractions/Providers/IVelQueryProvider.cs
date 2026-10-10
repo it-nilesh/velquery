@@ -17,8 +17,9 @@ public interface IVelQueryProvider
     string FormatParameterName(string name);
 
     /// <summary>
-    /// Applies provider-specific metadata after generic metadata has been set, for example native types or stable
-    /// string sizes that avoid plan-cache fragmentation. Must not read or log <paramref name="value"/> beyond its type.
+    /// Applies provider-specific metadata after generic metadata and the value have been set, for example native types
+    /// or stable string sizes that avoid plan-cache fragmentation. May replace the parameter value only with an
+    /// equivalent one (for example the same instant in UTC). Must never log <paramref name="value"/>.
     /// </summary>
     void ConfigureParameter(DbParameter parameter, in ParameterSpec spec, object? value);
 

@@ -57,9 +57,12 @@ parameter configuration (must not log values), identifier quoting, exception cla
 generic `ParameterWriter` (and generated binders) can create parameters through `DbCommand.CreateParameter()` while
 the provider only adds what it knows.
 
-**PostgreSQL** (Npgsql) is deferred to wave 2 (D-04): it needs its own naming (`@name` vs positional `$1`), arrays,
-`NpgsqlParameter<T>` (avoids boxing), timestamp semantics, and must rely on Npgsql auto-prepare rather than a VelQuery
-statement cache (§9.5).
+**PostgreSQL** (Npgsql, wave 2, added 2026-10-11): `PostgreSqlProvider` binds `@name` placeholders to parameters named
+`name`, applies `ProviderDbType` as `NpgsqlDbType`, needs no string size bucketing (plans are cached by type, not
+length), sends UTC `DateTime` inferred as `DateTime2` as `timestamptz`, and sends a `DateTimeOffset` with a non-zero
+offset as the same instant in UTC. It relies on Npgsql auto-prepare rather than a VelQuery statement cache (§9.5).
+Because providers may normalize values, `ParameterWriter` assigns the value before calling `ConfigureParameter`.
+Arrays and `NpgsqlParameter<T>` (boxing-free values) remain open.
 
 ## Consequences
 

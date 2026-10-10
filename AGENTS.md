@@ -15,7 +15,8 @@ as `VQ-FR-013` refer to it. Decisions are recorded in [docs/architecture/adr/](d
 |---|---|
 | `src/VelQuery.Abstractions` | Contracts shared by runtime, providers and generated code: `QueryDescriptor<TArgs,TRow>`, `IRowMapperFactory<T>`, `RowMappers<T>` registry, `ParameterSpec`/`ParameterWriter`, `IVelQueryProvider`, error types, `ValueConverter` |
 | `src/VelQuery.Core` | `VelQueryDataSource`, `VelQuerySession` (execution, ownership, transactions, streaming, multi-result), `QueryParameters`, opt-in reflection fallback mapper |
-| `src/VelQuery.SqlServer` | `SqlServerProvider` (Microsoft.Data.SqlClient), `VelQuerySqlServer.CreateDataSource`, DI registration |
+| `src/VelQuery.SqlServer` | `SqlServerProvider` (Microsoft.Data.SqlClient), `VelQuerySqlServer.CreateDataSource`, DI registration, `Bulk/` (SqlBulkCopy) |
+| `src/VelQuery.PostgreSQL` | `PostgreSqlProvider` (Npgsql), `VelQueryPostgreSql.CreateDataSource`, DI registration, `Bulk/` (binary COPY) |
 | `src/VelQuery.Generators` | Roslyn incremental generator for `[VelQuerySql]` contracts (netstandard2.0) |
 | `src/VelQuery.Analyzers` | VQ1xxx diagnostics (netstandard2.0) |
 | `tests/` | Unit, golden, analyzer and SQL Server integration tests (xUnit v3) |
@@ -25,7 +26,7 @@ as `VQ-FR-013` refer to it. Decisions are recorded in [docs/architecture/adr/](d
 
 ```bash
 dotnet build VelQuery.slnx            # warnings are errors
-dotnet test --solution VelQuery.slnx  # integration tests need Docker (Testcontainers SQL Server)
+dotnet test --solution VelQuery.slnx  # integration tests need Docker (Testcontainers SQL Server and PostgreSQL)
 ```
 
 - SDK is pinned in `global.json` (.NET 10). Package versions live only in `Directory.Packages.props`; never put

@@ -43,8 +43,9 @@ public static class ParameterWriter
             parameter.Scale = scale;
         }
 
-        provider.ConfigureParameter(parameter, spec, value);
         parameter.Value = value ?? System.DBNull.Value;
+        // Last, so providers can apply native types and normalize values (e.g. UTC for PostgreSQL timestamptz).
+        provider.ConfigureParameter(parameter, spec, value);
         command.Parameters.Add(parameter);
         return parameter;
     }

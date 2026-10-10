@@ -185,8 +185,9 @@ internal static class RowMapperEmitter
 
     /// <summary>
     /// Emits the strict fast path. Non-nullable members call the typed getter without a preceding <c>IsDBNull</c> (the
-    /// same work as hand-written ADO.NET); if a getter throws, an exception filter checks <c>IsDBNull</c> on that same
-    /// column (allowed under SequentialAccess) and reports the strict NULL error. Non-strict sessions use
+    /// same work as hand-written ADO.NET); if a getter throws, an exception filter decides whether the column was NULL
+    /// (via <c>IsDBNull</c> where the driver allows it after a failed read, otherwise from the cast failure) and reports
+    /// the strict NULL error. Non-strict sessions use
     /// <c>MapChecked</c>, which tests every column, because a NULL there is data rather than an error.
     /// </summary>
     private static void EmitMap(CodeWriter writer, RowPlan plan)
@@ -227,7 +228,7 @@ internal static class RowMapperEmitter
         writer.Line("member = -1;");
         EmitConstruction(writer, plan, i => $"v{i}");
         writer.Close();
-        writer.Open("catch (global::System.Exception) when (member >= 0 && reader.IsDBNull(OrdinalOf(member)))");
+        writer.Open("catch (global::System.Exception ex) when (member >= 0 && IsNullFailure(reader, member, ex))");
         writer.Line("throw NullError(member);");
         writer.Close();
         writer.Close();
@@ -235,6 +236,18 @@ internal static class RowMapperEmitter
 
         writer.Open($"private {plan.Type} MapChecked({Reader} reader)");
         EmitConstruction(writer, plan, i => Read(members[i], i));
+        writer.Close();
+        writer.Line();
+
+        writer.Line("// Under SequentialAccess some drivers (Npgsql) reject IsDBNull on a column whose getter already failed. The fast");
+        writer.Line("// path only calls a typed getter when the field type matches exactly, so a cast failure there can only mean NULL.");
+        writer.Open($"private bool IsNullFailure({Reader} reader, int member, global::System.Exception exception)");
+        writer.Open("try");
+        writer.Line("return reader.IsDBNull(OrdinalOf(member));");
+        writer.Close();
+        writer.Open("catch (global::System.Exception)");
+        writer.Line("return exception is global::System.InvalidCastException or global::System.Data.SqlTypes.SqlNullValueException;");
+        writer.Close();
         writer.Close();
         writer.Line();
 
