@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>VelQuery.Generators.GoldenTests</RootNamespace>
+    <!-- Roslyn's synchronous driver/parse APIs take optional tokens that add nothing to these in-memory tests. -->
+    <NoWarn>$(NoWarn);xUnit1051</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Expected generator output is checked in as .cs files but is data, not part of this project. -->
+    <Compile Remove="Expected/**" />
+    <None Include="Expected/**" />
+    <Compile Include="../Shared/GeneratorHarness.cs" Link="Shared/GeneratorHarness.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/VelQuery.Generators/VelQuery.Generators.csproj" />
+    <ProjectReference Include="../../src/VelQuery.Core/VelQuery.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+</Project>
