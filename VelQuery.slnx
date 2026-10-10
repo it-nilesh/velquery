@@ -8,4 +8,7 @@
     <Project Path="tests/VelQuery.Core.UnitTests/VelQuery.Core.UnitTests.csproj" />
     <Project Path="tests/VelQuery.SqlServer.IntegrationTests/VelQuery.SqlServer.IntegrationTests.csproj" />
   </Folder>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/VelQuery.Benchmarks/VelQuery.Benchmarks.csproj" />
+  </Folder>
 </Solution>
