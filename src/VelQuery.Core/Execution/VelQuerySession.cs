@@ -303,9 +303,10 @@ public sealed partial class VelQuerySession : IVelQuerySession
 
     /// <summary>
     /// Releases reader, command and connection in order. When <paramref name="faulted"/> is true, cleanup failures are
-    /// suppressed so they cannot hide the initiating failure (PRD §9.1 correctness invariant).
+    /// suppressed so they cannot hide the initiating failure (PRD §9.1 correctness invariant); otherwise the first
+    /// cleanup failure surfaces through the same error contract as execution failures (VQ-FR-026).
     /// </summary>
-    internal async ValueTask CleanupAsync(DbDataReader? reader, DbCommand? command, ConnectionLease lease, bool faulted)
+    internal async ValueTask CleanupAsync(DbDataReader? reader, DbCommand? command, ConnectionLease lease, bool faulted, string queryId)
     {
         Exception? cleanupFailure = null;
         if (reader is not null)
@@ -355,7 +356,7 @@ public sealed partial class VelQuerySession : IVelQuerySession
 
         if (cleanupFailure is not null && !faulted)
         {
-            ExceptionDispatchInfo.Capture(cleanupFailure).Throw();
+            throw Translate(cleanupFailure, queryId, CancellationToken.None);
         }
     }
 }
