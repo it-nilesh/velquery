@@ -31,8 +31,10 @@ public sealed partial class VelQuerySession
             }
 
             await DrainAsync(reader, cancellationToken).ConfigureAwait(false);
-            await reader.DisposeAsync().ConfigureAwait(false);
+            // Clear before disposing so a throwing Dispose is not retried by cleanup (dispose exactly once).
+            var completed = reader;
             reader = null;
+            await completed.DisposeAsync().ConfigureAwait(false);
             spec.Complete(command, StrictNulls);
             faulted = false;
             return rows;
@@ -43,7 +45,7 @@ public sealed partial class VelQuerySession
         }
         finally
         {
-            await CleanupAsync(reader, command, lease, faulted).ConfigureAwait(false);
+            await CleanupAsync(reader, command, lease, faulted, spec.QueryId).ConfigureAwait(false);
         }
     }
 
@@ -85,8 +87,10 @@ public sealed partial class VelQuerySession
                 await DrainAsync(reader, cancellationToken).ConfigureAwait(false);
             }
 
-            await reader.DisposeAsync().ConfigureAwait(false);
+            // Clear before disposing so a throwing Dispose is not retried by cleanup (dispose exactly once).
+            var completed = reader;
             reader = null;
+            await completed.DisposeAsync().ConfigureAwait(false);
             spec.Complete(command, StrictNulls);
             faulted = false;
             return result;
@@ -97,7 +101,7 @@ public sealed partial class VelQuerySession
         }
         finally
         {
-            await CleanupAsync(reader, command, lease, faulted).ConfigureAwait(false);
+            await CleanupAsync(reader, command, lease, faulted, spec.QueryId).ConfigureAwait(false);
         }
     }
 
@@ -122,7 +126,7 @@ public sealed partial class VelQuerySession
         }
         finally
         {
-            await CleanupAsync(null, command, lease, faulted).ConfigureAwait(false);
+            await CleanupAsync(null, command, lease, faulted, spec.QueryId).ConfigureAwait(false);
         }
     }
 
@@ -158,7 +162,7 @@ public sealed partial class VelQuerySession
         }
         finally
         {
-            await CleanupAsync(null, command, lease, faulted).ConfigureAwait(false);
+            await CleanupAsync(null, command, lease, faulted, spec.QueryId).ConfigureAwait(false);
         }
     }
 
@@ -177,7 +181,7 @@ public sealed partial class VelQuerySession
         }
         catch (Exception ex)
         {
-            await CleanupAsync(reader, command, lease, faulted: true).ConfigureAwait(false);
+            await CleanupAsync(reader, command, lease, faulted: true, spec.QueryId).ConfigureAwait(false);
             throw Translate(ex, spec.QueryId, cancellationToken);
         }
     }

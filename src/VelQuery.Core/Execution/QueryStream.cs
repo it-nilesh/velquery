@@ -80,8 +80,10 @@ internal sealed class QueryStream<TSpec, TRow>(VelQuerySession session, TSpec sp
                 {
                 }
 
-                await _reader.DisposeAsync().ConfigureAwait(false);
+                // Clear before disposing so a throwing Dispose is not retried by cleanup (dispose exactly once).
+                var reader = _reader;
                 _reader = null;
+                await reader.DisposeAsync().ConfigureAwait(false);
                 _spec.Complete(_command!, _session.StrictNulls);
                 Current = default!;
                 await FinishAsync(faulted: false).ConfigureAwait(false);
@@ -113,7 +115,7 @@ internal sealed class QueryStream<TSpec, TRow>(VelQuerySession session, TSpec sp
             {
                 if (_started)
                 {
-                    await _session.CleanupAsync(_reader, _command, _lease, faulted).ConfigureAwait(false);
+                    await _session.CleanupAsync(_reader, _command, _lease, faulted, _spec.QueryId).ConfigureAwait(false);
                 }
             }
             finally

@@ -111,8 +111,9 @@ public sealed class VelQueryMultipleReader : IAsyncDisposable
         _hasCurrent = await reader.NextResultAsync(cancellationToken).ConfigureAwait(false);
         if (!_hasCurrent)
         {
-            await reader.DisposeAsync().ConfigureAwait(false);
+            // Clear before disposing so a throwing Dispose is not retried by DisposeAsync (dispose exactly once).
             _reader = null;
+            await reader.DisposeAsync().ConfigureAwait(false);
             _complete(_command, _session.StrictNulls);
         }
     }
@@ -136,6 +137,6 @@ public sealed class VelQueryMultipleReader : IAsyncDisposable
         _disposed = true;
         var reader = _reader;
         _reader = null;
-        await _session.CleanupAsync(reader, _command, _lease, faulted: _faulted || reader is not null).ConfigureAwait(false);
+        await _session.CleanupAsync(reader, _command, _lease, faulted: _faulted || reader is not null, QueryId).ConfigureAwait(false);
     }
 }
