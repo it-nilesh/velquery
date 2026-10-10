@@ -13,6 +13,9 @@
     <Project Path="tests/VelQuery.Analyzers.Tests/VelQuery.Analyzers.Tests.csproj" />
     <Project Path="tests/VelQuery.SqlServer.IntegrationTests/VelQuery.SqlServer.IntegrationTests.csproj" />
   </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/QuickStart.Api/QuickStart.Api.csproj" />
+  </Folder>
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/VelQuery.Benchmarks/VelQuery.Benchmarks.csproj" />
   </Folder>

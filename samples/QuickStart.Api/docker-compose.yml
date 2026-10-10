@@ -1,0 +1,12 @@
+# Local SQL Server for the sample. On x64 hosts you can use SQL Server 2022:
+#   VELQUERY_SQL_IMAGE=mcr.microsoft.com/mssql/server:2022-latest docker compose up -d
+# Apple Silicon/ARM64 cannot run the 2022 image, so the default is Azure SQL Edge (same engine, dev use only).
+services:
+  sql:
+    image: ${VELQUERY_SQL_IMAGE:-mcr.microsoft.com/azure-sql-edge:1.0.7}
+    container_name: velquery-sample-sql
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "VelQuery!Sample123"
+    ports:
+      - "1433:1433"

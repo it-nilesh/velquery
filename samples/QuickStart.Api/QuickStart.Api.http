@@ -1,0 +1,28 @@
+@baseUrl = http://localhost:5080
+
+### List products (paged)
+GET {{baseUrl}}/products?skip=0&take=10
+
+### Get one product
+GET {{baseUrl}}/products/1
+
+### Create a product
+POST {{baseUrl}}/products
+Content-Type: application/json
+
+{ "name": "Ergonomic mouse", "description": "Vertical grip", "price": 59.90, "stock": 40 }
+
+### Update a product
+PUT {{baseUrl}}/products/1
+Content-Type: application/json
+
+{ "name": "Mechanical keyboard", "description": "Tactile switches, 87 keys, PBT caps", "price": 119.00, "stock": 30 }
+
+### Delete a product
+DELETE {{baseUrl}}/products/2
+
+### Search (runtime SQL with bound parameters)
+GET {{baseUrl}}/products/search?q=key
+
+### Stream every product
+GET {{baseUrl}}/products/export
