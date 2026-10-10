@@ -15,6 +15,7 @@ An accepted ADR is not edited in substance; a new ADR supersedes it.
 | [ADR-0003](ADR-0003-generated-contracts-vs-dynamic-sql.md) | Generated typed query contracts vs runtime SQL | Proposed | 2026-10-10 |
 | [ADR-0004](ADR-0004-mapping-semantics.md) | Mapping semantics | Proposed | 2026-10-10 |
 | [ADR-0005](ADR-0005-parameter-metadata-and-providers.md) | Parameter metadata and provider adapters | Proposed | 2026-10-10 |
+| [ADR-0013](ADR-0013-sql-server-bulk-insert.md) | SQL Server bulk insert | Proposed | 2026-10-11 |
 
 Still to be written (PRD §27): ADR-0006 static SQL subset and schema snapshots, ADR-0007 Native AOT provider/auth
 matrix, ADR-0008 benchmark fairness and publishing of losses, ADR-0009 diagnostics privacy and backpressure,

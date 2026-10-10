@@ -71,6 +71,14 @@ public interface IVelQuerySession : IAsyncDisposable, IDisposable
     /// <summary>Creates a runtime SQL command with per-call options (timeout, query ID, stored procedure).</summary>
     VelQueryTextCommand Sql(string sql, QueryParameters? parameters = null);
 
+    /// <summary>
+    /// Runs a provider-specific operation (for example a bulk copy) on the session's connection with the same
+    /// ownership, cancellation, cleanup and error-translation guarantees as built-in operations. Uses the pinned
+    /// connection and active transaction when present; otherwise a pooled connection is acquired for this call only.
+    /// </summary>
+    Task<TResult> ExecuteOnConnectionAsync<TState, TResult>(string queryId, TState state,
+        Func<ConnectionContext, TState, CancellationToken, Task<TResult>> operation, CancellationToken cancellationToken = default);
+
     /// <summary>Begins a session transaction; disposing without commit rolls back.</summary>
     ValueTask<VelQueryTransaction> BeginTransactionAsync(IsolationLevel isolationLevel = IsolationLevel.Unspecified, CancellationToken cancellationToken = default);
 }

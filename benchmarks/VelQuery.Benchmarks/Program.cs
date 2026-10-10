@@ -53,6 +53,12 @@ public static class Program
             return 0;
         }
 
+        if (args.Contains("--bulk-profile"))
+        {
+            await BulkProfile.RunAsync(database.ConnectionString);
+            return 0;
+        }
+
         if (args.Contains("--cpu-profile"))
         {
             await CpuProfile.RunAsync(database.ConnectionString);

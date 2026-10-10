@@ -11,6 +11,32 @@ namespace VelQuery;
 
 public sealed partial class VelQuerySession
 {
+    /// <inheritdoc />
+    public async Task<TResult> ExecuteOnConnectionAsync<TState, TResult>(string queryId, TState state,
+        Func<ConnectionContext, TState, CancellationToken, Task<TResult>> operation, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(queryId);
+        ArgumentNullException.ThrowIfNull(operation);
+        ConnectionLease lease = default;
+        var faulted = true;
+        try
+        {
+            lease = await AcquireAsync(cancellationToken).ConfigureAwait(false);
+            int? timeout = (CommandTimeout ?? _options.DefaultTimeout) is { } t ? CommandTimeouts.ToSeconds(t, queryId) : null;
+            var result = await operation(new ConnectionContext(lease.Connection, _transaction, timeout), state, cancellationToken).ConfigureAwait(false);
+            faulted = false;
+            return result;
+        }
+        catch (Exception ex)
+        {
+            throw Translate(ex, queryId, cancellationToken);
+        }
+        finally
+        {
+            await CleanupAsync(null, null, lease, faulted, queryId).ConfigureAwait(false);
+        }
+    }
+
     internal async Task<IReadOnlyList<TRow>> BufferAsync<TSpec, TRow>(TSpec spec, IRowMapperFactory<TRow> factory, CancellationToken cancellationToken)
         where TSpec : struct, ICommandSpec
     {
