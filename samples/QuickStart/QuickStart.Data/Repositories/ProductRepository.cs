@@ -1,7 +1,10 @@
 using Microsoft.Data.SqlClient;
+using QuickStart.Data.Exceptions;
+using QuickStart.Data.Models;
+using QuickStart.Data.Queries.Products;
 using VelQuery;
 
-namespace QuickStart.Data;
+namespace QuickStart.Data.Repositories;
 
 /// <summary>
 /// SQL Server implementation over one scoped <see cref="IVelQuerySession"/>. Translates database-specific failures

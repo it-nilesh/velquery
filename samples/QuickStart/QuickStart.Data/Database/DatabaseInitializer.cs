@@ -1,17 +1,21 @@
+using System.Reflection;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
+using QuickStart.Data.Logging;
 using VelQuery;
 using VelQuery.SqlServer;
 
-namespace QuickStart.Data;
+namespace QuickStart.Data.Database;
 
 /// <summary>
-/// Creates the sample database, table and seed rows on startup. Schema setup is sample convenience only; real
-/// applications should use a migration tool.
+/// Creates the sample database and runs the embedded scripts in <c>Database/Scripts</c> (in name order) on startup.
+/// Scripts are idempotent. This is sample convenience only; real applications should use a migration tool.
 /// </summary>
 public static class DatabaseInitializer
 {
     public const string DatabaseName = "VelQuerySample";
+
+    private const string ScriptPrefix = "QuickStart.Data.Database.Scripts.";
 
     public static async Task EnsureCreatedAsync(string connectionString, ILogger logger, CancellationToken cancellationToken)
     {
@@ -29,31 +33,26 @@ public static class DatabaseInitializer
             await session.ExecuteAsync($"IF DB_ID(N'{DatabaseName}') IS NULL CREATE DATABASE [{DatabaseName}]", cancellationToken: cancellationToken);
         }
 
-        await using var app = VelQuerySqlServer.CreateDataSource(connectionString);
-        await using var appSession = app.CreateSession();
-        await appSession.ExecuteAsync("""
-            IF OBJECT_ID(N'dbo.Products') IS NULL
-            CREATE TABLE dbo.Products
-            (
-                Id           int IDENTITY(1, 1) NOT NULL CONSTRAINT PK_Products PRIMARY KEY,
-                Name         nvarchar(200)  NOT NULL CONSTRAINT UQ_Products_Name UNIQUE,
-                Description  nvarchar(1000) NULL,
-                Price        decimal(18, 2) NOT NULL CONSTRAINT CK_Products_Price CHECK (Price >= 0),
-                Stock        int            NOT NULL CONSTRAINT CK_Products_Stock CHECK (Stock >= 0),
-                CreatedAt    datetimeoffset(3) NOT NULL CONSTRAINT DF_Products_CreatedAt DEFAULT SYSDATETIMEOFFSET()
-            );
-            """, cancellationToken: cancellationToken);
-
-        var count = await appSession.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM dbo.Products", cancellationToken: cancellationToken);
-        if (count == 0)
+        await using var dataSource = VelQuerySqlServer.CreateDataSource(connectionString);
+        await using var appSession = dataSource.CreateSession();
+        foreach (var (name, sql) in LoadScripts())
         {
-            await appSession.ExecuteAsync("""
-                INSERT INTO dbo.Products (Name, Description, Price, Stock) VALUES
-                    (N'Mechanical keyboard', N'Tactile switches, 87 keys', 129.00, 25),
-                    (N'USB-C dock', N'Dual 4K output, 100 W pass-through', 189.50, 12),
-                    (N'Noise-cancelling headphones', NULL, 249.99, 7);
-                """, cancellationToken: cancellationToken);
-            Log.Seeded(logger);
+            await appSession.Sql(sql).WithQueryId("schema." + name).ExecuteAsync(cancellationToken);
+            Log.ScriptApplied(logger, name);
+        }
+    }
+
+    /// <summary>Reads the trusted, build-time embedded scripts. They contain no user input.</summary>
+    private static IEnumerable<(string Name, string Sql)> LoadScripts()
+    {
+        var assembly = typeof(DatabaseInitializer).Assembly;
+        foreach (var resource in assembly.GetManifestResourceNames()
+                     .Where(n => n.StartsWith(ScriptPrefix, StringComparison.Ordinal) && n.EndsWith(".sql", StringComparison.Ordinal))
+                     .Order(StringComparer.Ordinal))
+        {
+            using var stream = assembly.GetManifestResourceStream(resource)!;
+            using var reader = new StreamReader(stream);
+            yield return (resource[ScriptPrefix.Length..^".sql".Length], reader.ReadToEnd());
         }
     }
 

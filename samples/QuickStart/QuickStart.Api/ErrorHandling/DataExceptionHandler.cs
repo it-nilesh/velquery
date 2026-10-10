@@ -1,8 +1,9 @@
 using Microsoft.AspNetCore.Diagnostics;
-using QuickStart.Data;
+using QuickStart.Api.Logging;
+using QuickStart.Data.Exceptions;
 using VelQuery;
 
-namespace QuickStart.Api;
+namespace QuickStart.Api.ErrorHandling;
 
 /// <summary>
 /// Maps data-layer failures to HTTP problem responses. Details stay in the server log, not the response body.

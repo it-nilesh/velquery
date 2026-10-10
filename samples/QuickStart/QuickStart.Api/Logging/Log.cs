@@ -1,4 +1,4 @@
-namespace QuickStart.Api;
+namespace QuickStart.Api.Logging;
 
 internal static partial class Log
 {

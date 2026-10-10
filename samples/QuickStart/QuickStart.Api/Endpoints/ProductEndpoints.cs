@@ -1,4 +1,5 @@
-using QuickStart.Data;
+using QuickStart.Data.Models;
+using QuickStart.Data.Repositories;
 
 namespace QuickStart.Api.Endpoints;
 

@@ -1,7 +1,4 @@
-namespace QuickStart.Data;
-
-/// <summary>A row of <c>dbo.Products</c>. The generator emits a reflection-free mapper for it at build time.</summary>
-public sealed record Product(int Id, string Name, string? Description, decimal Price, int Stock, DateTimeOffset CreatedAt);
+namespace QuickStart.Data.Models;
 
 /// <summary>Values supplied when creating or updating a product.</summary>
 public sealed record ProductInput(string Name, string? Description, decimal Price, int Stock)
@@ -35,11 +32,4 @@ public sealed record ProductInput(string Name, string? Description, decimal Pric
 
         return errors;
     }
-}
-
-/// <summary>Raised when a product name collides with an existing product (unique constraint).</summary>
-public sealed class DuplicateProductNameException(string name, Exception innerException)
-    : Exception($"A product named '{name}' already exists.", innerException)
-{
-    public string Name { get; } = name;
 }

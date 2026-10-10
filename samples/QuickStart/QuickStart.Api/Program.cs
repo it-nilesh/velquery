@@ -1,6 +1,7 @@
-using QuickStart.Api;
 using QuickStart.Api.Endpoints;
-using QuickStart.Data;
+using QuickStart.Api.ErrorHandling;
+using QuickStart.Data.Database;
+using QuickStart.Data.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
 

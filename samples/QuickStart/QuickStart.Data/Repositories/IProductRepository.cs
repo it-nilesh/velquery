@@ -1,4 +1,7 @@
-namespace QuickStart.Data;
+using QuickStart.Data.Exceptions;
+using QuickStart.Data.Models;
+
+namespace QuickStart.Data.Repositories;
 
 /// <summary>Product data access. Inject this (not the generated queries) so callers can be unit-tested with a fake.</summary>
 public interface IProductRepository

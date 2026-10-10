@@ -1,7 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
+using QuickStart.Data.Repositories;
 using VelQuery.SqlServer;
 
-namespace QuickStart.Data;
+namespace QuickStart.Data.DependencyInjection;
 
 public static class ServiceCollectionExtensions
 {
