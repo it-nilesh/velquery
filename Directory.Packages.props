@@ -5,6 +5,7 @@
   <ItemGroup Label="Runtime">
     <PackageVersion Include="Microsoft.Data.SqlClient" Version="7.1.1" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
   </ItemGroup>
   <ItemGroup Label="Compiler">
     <!-- Keep at or below the oldest supported compiler (SDK 10.0.1xx ships Roslyn 5.x). -->

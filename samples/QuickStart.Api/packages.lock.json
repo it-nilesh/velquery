@@ -103,6 +103,12 @@
         "resolved": "9.0.18",
         "contentHash": "1/iz9Eex1TBMYdAk+m3igaMvL+nk+rY1EqL6u93an/j1ghxmB24vGOKXkVFy3NSPA39s1H/+SNoK257tHoXoLA=="
       },
+      "quickstart.data": {
+        "type": "Project",
+        "dependencies": {
+          "VelQuery.SqlServer": "[0.1.0-alpha, )"
+        }
+      },
       "velquery.abstractions": {
         "type": "Project"
       },

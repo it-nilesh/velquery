@@ -1,14 +1,15 @@
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Logging;
 using VelQuery;
 using VelQuery.SqlServer;
 
-namespace QuickStart.Api.Data;
+namespace QuickStart.Data;
 
 /// <summary>
 /// Creates the sample database, table and seed rows on startup. Schema setup is sample convenience only; real
 /// applications should use a migration tool.
 /// </summary>
-internal static class DatabaseInitializer
+public static class DatabaseInitializer
 {
     public const string DatabaseName = "VelQuerySample";
 

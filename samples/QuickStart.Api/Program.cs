@@ -1,22 +1,15 @@
 using QuickStart.Api;
-using QuickStart.Api.Data;
 using QuickStart.Api.Endpoints;
-using VelQuery.SqlServer;
+using QuickStart.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
 var connectionString = builder.Configuration.GetConnectionString("Products")
     ?? throw new InvalidOperationException("Missing connection string 'ConnectionStrings:Products'.");
 
-// Registers a singleton VelQueryDataSource (backed by SqlClient's connection pool) and a scoped IVelQuerySession.
-builder.Services.AddVelQuerySqlServer(connectionString, options =>
-{
-    options.DefaultTimeout = TimeSpan.FromSeconds(15);
-    options.StrictMapping = true;
-    options.AllowDynamicFallback = false;
-});
+builder.Services.AddProductData(connectionString);
 builder.Services.AddProblemDetails();
-builder.Services.AddExceptionHandler<VelQueryExceptionHandler>();
+builder.Services.AddExceptionHandler<DataExceptionHandler>();
 
 var app = builder.Build();
 

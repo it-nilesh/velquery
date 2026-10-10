@@ -22,25 +22,38 @@ curl -X POST http://localhost:5080/products -H 'Content-Type: application/json' 
 
 Stop the database with `docker compose down`.
 
+## Projects
+
+| Project | Contents |
+|---|---|
+| [QuickStart.Api](.) | Minimal API endpoints, validation responses, and mapping of data errors to HTTP problems. Depends only on `IProductRepository`. |
+| [QuickStart.Data](../QuickStart.Data) | `Product`/`ProductInput`, the `[VelQuerySql]` queries (internal), `IProductRepository` + `ProductRepository`, schema setup, and `AddProductData(connectionString)`. |
+
+The generated queries stay static (no allocation, AOT-safe, compile-time checked); the repository wraps them behind
+an interface so endpoint code can be unit-tested with a fake. The repository also converts SQL Server duplicate-key
+errors into `DuplicateProductNameException`, so the API never references SqlClient.
+
 ## Endpoints
 
-| Method | Route | VelQuery feature |
+| Method | Route | Repository method → VelQuery feature |
 |---|---|---|
-| GET | `/products?skip=0&take=20` | Generated `Task<IReadOnlyList<Product>>` query |
-| GET | `/products/{id}` | Generated `Task<Product?>` (SingleOrDefault) → 404 when missing |
-| POST | `/products` | Generated scalar insert (`OUTPUT INSERTED.Id`) with sized/precise parameters |
-| PUT | `/products/{id}` | Generated non-query; affected-row count 0 → 404 |
-| DELETE | `/products/{id}` | Generated non-query |
-| GET | `/products/search?q=` | Runtime SQL with `QueryParameters`, per-call timeout and query ID |
-| GET | `/products/export` | Generated `IAsyncEnumerable<Product>` streamed to the response |
+| GET | `/products?skip=0&take=20` | `ListAsync` → generated `Task<IReadOnlyList<Product>>` |
+| GET | `/products/{id}` | `GetAsync` → generated `Task<Product?>` (SingleOrDefault); 404 when missing |
+| POST | `/products` | `CreateAsync` → generated insert returning the row via `OUTPUT INSERTED.*` (one round trip) |
+| PUT | `/products/{id}` | `UpdateAsync` → generated non-query; 0 rows → 404 |
+| DELETE | `/products/{id}` | `DeleteAsync` → generated non-query |
+| GET | `/products/search?q=` | `SearchAsync` → runtime SQL with `QueryParameters`, per-call timeout and query ID |
+| GET | `/products/export` | `ExportAsync` → generated `IAsyncEnumerable<Product>` streamed to the response |
+
+Errors: duplicate name → 409, validation → 400, database timeout → 504, other database errors → 503.
 
 ## Where to look
 
-- [Data/ProductQueries.cs](Data/ProductQueries.cs): `[VelQuerySql]` contracts. Misspell `@Id` in one of them and the
-  build fails with VQ1001.
-- [Program.cs](Program.cs): `AddVelQuerySqlServer` registers the data source and a scoped `IVelQuerySession`.
-- [VelQueryExceptionHandler.cs](VelQueryExceptionHandler.cs): maps VelQuery error categories to problem responses
-  (unique-key violation → 409, timeout → 504, other provider errors → 503).
+- [QuickStart.Data/ProductQueries.cs](../QuickStart.Data/ProductQueries.cs): misspell `@Id` in a query and the build
+  fails with VQ1001.
+- [QuickStart.Data/ProductRepository.cs](../QuickStart.Data/ProductRepository.cs): the only code that calls the
+  generated queries.
+- [DataExceptionHandler.cs](DataExceptionHandler.cs): HTTP mapping for data-layer exceptions.
 
 The `sa` password in `appsettings.json` and `docker-compose.yml` is for this local container only. Use user secrets
 or environment variables (`ConnectionStrings__Products`) for anything else.
