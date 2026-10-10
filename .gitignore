@@ -8,3 +8,4 @@ TestResults/
 .idea/
 .DS_Store
 *.received.*
+.claude/worktrees/

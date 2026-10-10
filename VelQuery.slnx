@@ -4,4 +4,7 @@
     <Project Path="src/VelQuery.Core/VelQuery.Core.csproj" />
     <Project Path="src/VelQuery.SqlServer/VelQuery.SqlServer.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/VelQuery.SqlServer.IntegrationTests/VelQuery.SqlServer.IntegrationTests.csproj" />
+  </Folder>
 </Solution>
