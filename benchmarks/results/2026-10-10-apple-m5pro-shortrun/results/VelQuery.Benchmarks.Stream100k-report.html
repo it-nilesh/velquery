@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>VelQuery.Benchmarks.Stream100k-20261010-192325</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, macOS Tahoe 26.5.1 (25F80) [Darwin 25.5.0]
+Apple M5 Pro, 1 CPU, 15 logical and 15 physical cores
+.NET SDK 10.0.201
+  [Host]   : .NET 10.0.5 (10.0.5, 10.0.526.15411), Arm64 RyuJIT armv8.0-a
+  ShortRun : .NET 10.0.5 (10.0.5, 10.0.526.15411), Arm64 RyuJIT armv8.0-a
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=5  LaunchCount=1  
+WarmupCount=2  Categories=stream-100k  
+</code></pre>
+
+<table>
+<thead><tr><th>Method        </th><th>Mean</th><th>Error</th><th>StdDev</th><th>P95</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>raw-adonet</td><td>41.26 ms</td><td>9.284 ms</td><td>2.411 ms</td><td>44.07 ms</td><td>1.00</td><td>0.07</td><td>2700.0000</td><td>-</td><td>21.7 MB</td><td>1.00</td>
+</tr><tr><td>dapper</td><td>41.80 ms</td><td>7.392 ms</td><td>1.144 ms</td><td>43.04 ms</td><td>1.02</td><td>0.06</td><td>3666.6667</td><td>83.3333</td><td>29.31 MB</td><td>1.35</td>
+</tr><tr><td>dapper-aot</td><td>57.67 ms</td><td>40.959 ms</td><td>10.637 ms</td><td>70.99 ms</td><td>1.40</td><td>0.25</td><td>2625.0000</td><td>-</td><td>21.69 MB</td><td>1.00</td>
+</tr><tr><td>velquery-descriptor</td><td>53.14 ms</td><td>1.315 ms</td><td>0.341 ms</td><td>53.57 ms</td><td>1.29</td><td>0.07</td><td>4583.3333</td><td>83.3333</td><td>36.64 MB</td><td>1.69</td>
+</tr><tr><td>velquery-runtime-sql</td><td>49.59 ms</td><td>25.587 ms</td><td>6.645 ms</td><td>54.44 ms</td><td>1.21</td><td>0.16</td><td>4642.8571</td><td>71.4286</td><td>37.27 MB</td><td>1.72</td>
+</tr></tbody></table>
+</body>
+</html>

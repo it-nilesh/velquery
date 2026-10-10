@@ -1,0 +1,41 @@
+  Host: unix:///Users/nilesh.vishwakarma/.colima/default/docker.sock
+  Server Version: 29.2.1
+  Kernel Version: 6.8.0-100-generic
+  API Version: 1.53
+  Operating System: Ubuntu 24.04.4 LTS
+  Total Memory: 1.91 GB
+== raw-adonet (SequentialAccess): 21.74 MB/op (228 B/row)
+     159.3 B/row  System.String
+      56.9 B/row  VelQuery.Benchmarks.BenchRow
+       3.8 B/row  System.Byte[]
+       0.9 B/row  System.Object[]
+       0.4 B/row  MoreEventInfo
+       0.2 B/row  System.Diagnostics.Tracing.EventWrittenEventArgs
+       0.2 B/row  System.UInt64
+       0.2 B/row  System.Threading.Tasks.ContinuationTaskFromResultTask`1[System.Boolean]
+== raw-adonet (CommandBehavior.Default): 30.37 MB/op (318 B/row)
+     152.4 B/row  System.String
+     141.8 B/row  System.Byte[]
+       4.3 B/row  System.Threading.Tasks.Task`1[System.Boolean]
+       3.2 B/row  System.Threading.Tasks.ContinueWithTaskContinuation
+       1.9 B/row  System.Threading.Tasks.ContinuationTaskFromResultTask`1[System.Boolean]
+       1.7 B/row  System.Threading.TimerQueueTimer
+       1.5 B/row  System.Threading.Tasks.ContinuationResultTaskFromResultTask`2[System.Object,System.Threading.Tasks.Task`1[System.Boolean]]
+       1.3 B/row  System.Threading.Tasks.Task`1[System.Int32]
+== dapper-aot: 21.75 MB/op (228 B/row)
+     155.8 B/row  System.String
+      62.1 B/row  VelQuery.Benchmarks.BenchRow
+       3.8 B/row  System.Byte[]
+       0.4 B/row  System.Diagnostics.Tracing.EventWrittenEventArgs
+       0.2 B/row  System.Object[]
+       0.2 B/row  MoreEventInfo
+       0.2 B/row  System.GCMemoryInfoData
+== velquery-descriptor: 37.04 MB/op (388 B/row)
+     149.7 B/row  System.String
+     136.9 B/row  System.Byte[]
+      60.1 B/row  VelQuery.Benchmarks.BenchRow
+       5.8 B/row  System.Threading.Tasks.Task`1[System.Boolean]
+       2.8 B/row  System.Threading.TimerQueueTimer
+       2.3 B/row  System.Threading.Tasks.TaskCompletionSource`1[System.Boolean]
+       2.1 B/row  System.Threading.Tasks.ContinuationResultTaskFromResultTask`2[System.Object,System.Threading.Tasks.Task`1[System.Boolean]]
+       1.7 B/row  System.Threading.Tasks.ContinueWithTaskContinuation

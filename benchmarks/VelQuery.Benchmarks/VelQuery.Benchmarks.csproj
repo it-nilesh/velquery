@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>VelQuery.Benchmarks</RootNamespace>
+    <Optimize>true</Optimize>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <!-- Dapper.AOT emits C# interceptors; they must be allowed for its generated namespace. -->
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Dapper.AOT</InterceptorsNamespaces>
+    <!-- Keep generated sources on disk so the Dapper / Dapper.AOT split can be audited (see README). -->
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/VelQuery.SqlServer/VelQuery.SqlServer.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
+    <PackageReference Include="Dapper" />
+    <PackageReference Include="Dapper.AOT" />
+    <PackageReference Include="Microsoft.Data.SqlClient" />
+    <PackageReference Include="Testcontainers.MsSql" />
+  </ItemGroup>
+</Project>
