@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>VelQuery.Benchmarks.ScalarCount-20261010-192245</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, macOS Tahoe 26.5.1 (25F80) [Darwin 25.5.0]
+Apple M5 Pro, 1 CPU, 15 logical and 15 physical cores
+.NET SDK 10.0.201
+  [Host]   : .NET 10.0.5 (10.0.5, 10.0.526.15411), Arm64 RyuJIT armv8.0-a
+  ShortRun : .NET 10.0.5 (10.0.5, 10.0.526.15411), Arm64 RyuJIT armv8.0-a
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  Categories=scalar-count  
+</code></pre>
+
+<table>
+<thead><tr><th>Method        </th><th>Mean</th><th>Error</th><th>StdDev</th><th>P95</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>raw-adonet</td><td>410.1 &mu;s</td><td>87.63 &mu;s</td><td>4.80 &mu;s</td><td>414.7 &mu;s</td><td>1.00</td><td>0.01</td><td>0.4883</td><td>4.12 KB</td><td>1.00</td>
+</tr><tr><td>dapper</td><td>433.5 &mu;s</td><td>1,064.88 &mu;s</td><td>58.37 &mu;s</td><td>490.9 &mu;s</td><td>1.06</td><td>0.12</td><td>0.4883</td><td>4.27 KB</td><td>1.04</td>
+</tr><tr><td>dapper-aot</td><td>405.1 &mu;s</td><td>119.48 &mu;s</td><td>6.55 &mu;s</td><td>409.6 &mu;s</td><td>0.99</td><td>0.02</td><td>0.4883</td><td>4.38 KB</td><td>1.06</td>
+</tr><tr><td>velquery-descriptor</td><td>422.7 &mu;s</td><td>301.12 &mu;s</td><td>16.51 &mu;s</td><td>435.0 &mu;s</td><td>1.03</td><td>0.04</td><td>0.4883</td><td>4.41 KB</td><td>1.07</td>
+</tr><tr><td>velquery-runtime-sql</td><td>440.0 &mu;s</td><td>890.83 &mu;s</td><td>48.83 &mu;s</td><td>488.1 &mu;s</td><td>1.07</td><td>0.10</td><td>0.4883</td><td>4.45 KB</td><td>1.08</td>
+</tr></tbody></table>
+</body>
+</html>

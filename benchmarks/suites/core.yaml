@@ -1,0 +1,65 @@
+# VelQuery core query benchmark manifest (PRD §14.2). Implemented by benchmarks/VelQuery.Benchmarks.
+# This file documents the suite contract; the BenchmarkDotNet project is the executable form. Keep them in sync.
+suite: velquery.query-core.v1
+runtime: net10.0
+# The PRD baseline is linux-x64. Developer runs on arm64 hosts are recorded with their actual architecture in
+# environment.json and must not be compared with linux-x64 results.
+architecture: linux-x64
+provider: sqlserver
+database:
+  image-x64: mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04
+  image-arm64: mcr.microsoft.com/azure-sql-edge:1.0.7   # SQL Server engine 15.x; only arm64-native image
+  override-env: VELQUERY_BENCH_SQLSERVER                # use an existing server instead of Testcontainers
+  table: dbo.BenchRows                                  # Id int PK, Name nvarchar(100), Email nvarchar(200) NULL,
+                                                        # Amount decimal(18,4), CreatedUtc datetime2(7), IsActive bit, CategoryId int
+  rows: 100000
+  seed: 20261010                                        # System.Random; every 10th Email is NULL
+comparison:
+  - raw-adonet             # hand-optimized SqlClient: fixed ordinals, typed getters, explicit SqlDbType metadata
+  - dapper                 # Dapper 2.x, [DapperAot(false)] scope (verified not intercepted)
+  - dapper-aot             # Dapper.AOT interceptors, [DapperAot(true)] scope
+  - velquery-descriptor    # QueryDescriptor<TArgs,TRow> + hand-written IRowMapperFactory (stand-in for generator output)
+  - velquery-runtime-sql   # session.QueryAsync<T>(sql, QueryParameters) + RowMappers<T>.Register mapper
+cases:
+  - id: one-row-projection
+    sql: SELECT Id, Name, Email, Amount, CreatedUtc, IsActive FROM dbo.BenchRows WHERE Id = @Id
+    semantics: single-or-default
+  - id: scalar-count
+    sql: SELECT COUNT(*) FROM dbo.BenchRows WHERE Id <= 1000
+  - id: buffered-100
+    sql: SELECT TOP (100) Id, Name, Email, Amount, CreatedUtc, IsActive FROM dbo.BenchRows ORDER BY Id
+  - id: buffered-1000
+    sql: SELECT TOP (1000) Id, Name, Email, Amount, CreatedUtc, IsActive FROM dbo.BenchRows ORDER BY Id
+  - id: stream-100k
+    sql: SELECT Id, Name, Email, Amount, CreatedUtc, IsActive FROM dbo.BenchRows ORDER BY Id
+    iterations: { warmup: 2, measured: 5 }   # fewer iterations; each operation reads 100,000 rows
+  - id: typed-params
+    sql: >-
+      SELECT Id, Name, Email, Amount, CreatedUtc, IsActive FROM dbo.BenchRows
+      WHERE Id = @Id AND Name = @Name AND Amount = @Amount AND CreatedUtc = @CreatedUtc AND IsActive = @IsActive
+    parameters:
+      Id: int
+      Name: nvarchar(100)        # explicit size
+      Amount: decimal(18,4)      # explicit precision/scale
+      CreatedUtc: datetime2
+      IsActive: bit
+    semantics: single-or-default
+metrics:
+  - mean-us
+  - p95-us
+  - p99-us                   # in the full JSON export (percentiles); meaningful only with many iterations
+  - allocated-bytes-per-op
+  - cpu-ms-per-1000-ops      # not yet collected (needs an EventPipe/ETW profiler run)
+  - operations-per-second    # derivable from mean; single-client only in this suite
+controls:
+  pool-size: fixed           # Pooling=true, Min=0, Max=100, MARS=false; same connection string for every library
+  connection-per-operation: true   # every library opens (from the pool) and disposes a connection per operation
+  query-text-identical: true
+  data-distribution-identical: true
+  instrumentation: disabled  # no logging, no diagnostics listeners, VelQuery diagnostics off
+  result-verification: true  # global setup asserts every library returns identical rows before measuring
+output:
+  - results/*-report-full.json
+  - results/*-report-github.md
+  - environment.json
+  - charts                   # not yet generated

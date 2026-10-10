@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>VelQuery.Benchmarks.Buffered-20261010-192107</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, macOS Tahoe 26.5.1 (25F80) [Darwin 25.5.0]
+Apple M5 Pro, 1 CPU, 15 logical and 15 physical cores
+.NET SDK 10.0.201
+  [Host]   : .NET 10.0.5 (10.0.5, 10.0.526.15411), Arm64 RyuJIT armv8.0-a
+  ShortRun : .NET 10.0.5 (10.0.5, 10.0.526.15411), Arm64 RyuJIT armv8.0-a
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  Categories=buffered  
+</code></pre>
+
+<table>
+<thead><tr><th>Method        </th><th>Rows</th><th>Mean</th><th>Error</th><th>StdDev</th><th>P95 </th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>raw-adonet</td><td>100</td><td>480.1 &mu;s</td><td>258.9 &mu;s</td><td>14.19 &mu;s</td><td>491.5 &mu;s</td><td>1.00</td><td>0.04</td><td>2.9297</td><td>-</td><td>27.79 KB</td><td>1.00</td>
+</tr><tr><td>dapper</td><td>100</td><td>467.3 &mu;s</td><td>529.3 &mu;s</td><td>29.01 &mu;s</td><td>495.9 &mu;s</td><td>0.97</td><td>0.06</td><td>3.9063</td><td>-</td><td>37.16 KB</td><td>1.34</td>
+</tr><tr><td>dapper-aot</td><td>100</td><td>477.1 &mu;s</td><td>174.3 &mu;s</td><td>9.55 &mu;s</td><td>485.3 &mu;s</td><td>0.99</td><td>0.03</td><td>3.4180</td><td>-</td><td>28.58 KB</td><td>1.03</td>
+</tr><tr><td>velquery-descriptor</td><td>100</td><td>452.1 &mu;s</td><td>580.0 &mu;s</td><td>31.79 &mu;s</td><td>483.2 &mu;s</td><td>0.94</td><td>0.06</td><td>3.9063</td><td>-</td><td>38.37 KB</td><td>1.38</td>
+</tr><tr><td>velquery-runtime-sql</td><td>100</td><td>498.0 &mu;s</td><td>620.9 &mu;s</td><td>34.03 &mu;s</td><td>531.5 &mu;s</td><td>1.04</td><td>0.07</td><td>3.9063</td><td>-</td><td>38.35 KB</td><td>1.38</td>
+</tr><tr><td>raw-adonet</td><td>1000</td><td>1,061.2 &mu;s</td><td>1,352.8 &mu;s</td><td>74.15 &mu;s</td><td>1,134.4 &mu;s</td><td>1.00</td><td>0.08</td><td>27.3438</td><td>7.8125</td><td>233.08 KB</td><td>1.00</td>
+</tr><tr><td>dapper</td><td>1000</td><td>1,235.3 &mu;s</td><td>2,676.5 &mu;s</td><td>146.71 &mu;s</td><td>1,379.7 &mu;s</td><td>1.17</td><td>0.14</td><td>37.1094</td><td>9.7656</td><td>312.81 KB</td><td>1.34</td>
+</tr><tr><td>dapper-aot</td><td>1000</td><td>1,188.7 &mu;s</td><td>680.7 &mu;s</td><td>37.31 &mu;s</td><td>1,213.9 &mu;s</td><td>1.12</td><td>0.07</td><td>27.3438</td><td>7.8125</td><td>233.85 KB</td><td>1.00</td>
+</tr><tr><td>velquery-descriptor</td><td>1000</td><td>1,333.8 &mu;s</td><td>634.9 &mu;s</td><td>34.80 &mu;s</td><td>1,362.9 &mu;s</td><td>1.26</td><td>0.08</td><td>46.8750</td><td>15.6250</td><td>381.64 KB</td><td>1.64</td>
+</tr><tr><td>velquery-runtime-sql</td><td>1000</td><td>1,214.4 &mu;s</td><td>1,267.2 &mu;s</td><td>69.46 &mu;s</td><td>1,264.6 &mu;s</td><td>1.15</td><td>0.09</td><td>46.8750</td><td>15.6250</td><td>384.68 KB</td><td>1.65</td>
+</tr></tbody></table>
+</body>
+</html>
