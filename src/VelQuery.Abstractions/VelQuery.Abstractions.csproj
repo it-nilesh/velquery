@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>VelQuery</RootNamespace>
+    <IsAotCompatible>true</IsAotCompatible>
+    <Description>Lightweight contracts shared by VelQuery runtime, providers and generated code.</Description>
+  </PropertyGroup>
+</Project>

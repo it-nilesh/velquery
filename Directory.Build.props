@@ -1,0 +1,26 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <Deterministic>true</Deterministic>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <Authors>VelQuery contributors</Authors>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <Version>0.1.0-alpha</Version>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectDirectory.Contains(`/src/`))' == 'true'">
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectDirectory.Contains(`/tests/`))' == 'true' Or '$(MSBuildProjectDirectory.Contains(`/benchmarks/`))' == 'true'">
+    <IsPackable>false</IsPackable>
+    <!-- Tests and benchmarks are not library code: no ConfigureAwait or doc-comment requirements. -->
+    <NoWarn>$(NoWarn);CA2007;CA1707;CA1515;CA1812;CA1822;CA1861;CA2000</NoWarn>
+  </PropertyGroup>
+</Project>

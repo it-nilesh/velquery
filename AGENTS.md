@@ -1,0 +1,58 @@
+# AGENTS.md
+
+Guidance for AI coding agents and contributors working in this repository.
+
+## Project context
+
+VelQuery is a query-first .NET 10 SQL execution engine: typed execution, source-generated binders/mappers,
+compile-time SQL diagnostics, and (later, out-of-band) AI query intelligence. It is **not** an ORM.
+The requirements baseline is [docs/prd/VelQuery_PRD_v1.0.md](docs/prd/VelQuery_PRD_v1.0.md); requirement IDs such
+as `VQ-FR-013` refer to it. Decisions are recorded in [docs/architecture/adr/](docs/architecture/adr/).
+
+## Layout
+
+| Path | Purpose |
+|---|---|
+| `src/VelQuery.Abstractions` | Contracts shared by runtime, providers and generated code: `QueryDescriptor<TArgs,TRow>`, `IRowMapperFactory<T>`, `RowMappers<T>` registry, `ParameterSpec`/`ParameterWriter`, `IVelQueryProvider`, error types, `ValueConverter` |
+| `src/VelQuery.Core` | `VelQueryDataSource`, `VelQuerySession` (execution, ownership, transactions, streaming, multi-result), `QueryParameters`, opt-in reflection fallback mapper |
+| `src/VelQuery.SqlServer` | `SqlServerProvider` (Microsoft.Data.SqlClient), `VelQuerySqlServer.CreateDataSource`, DI registration |
+| `src/VelQuery.Generators` | Roslyn incremental generator for `[VelQuerySql]` contracts (netstandard2.0) |
+| `src/VelQuery.Analyzers` | VQ1xxx diagnostics (netstandard2.0) |
+| `tests/` | Unit, golden, analyzer and SQL Server integration tests (xUnit v3) |
+| `benchmarks/` | BenchmarkDotNet suites comparing raw ADO.NET, Dapper, Dapper.AOT and VelQuery |
+
+## Build and test
+
+```bash
+dotnet build VelQuery.slnx            # warnings are errors
+dotnet test --solution VelQuery.slnx  # integration tests need Docker (Testcontainers SQL Server)
+```
+
+- SDK is pinned in `global.json` (.NET 10). Package versions live only in `Directory.Packages.props`; never put
+  `Version=` on a `PackageReference`. Lock files are enabled: run `dotnet restore --force-evaluate` after changing packages.
+- Every new project must be added to `VelQuery.slnx`.
+
+## Code conventions
+
+- File-scoped namespaces, `ImplicitUsings` disabled (explicit `using`s), nullable enabled, XML docs on public APIs in `src/`.
+- Library code uses `ConfigureAwait(false)` on every await (CA2007 is an error in `src/`).
+- Runtime libraries are `IsAotCompatible`; trimming/AOT warnings are errors. No `Reflection.Emit`, no
+  `MakeGenericType`/`MakeGenericMethod`, no `Convert.ChangeType` on execution paths.
+- Match the existing comment density: explain *why* and reference PRD requirement IDs; don't narrate code.
+
+## Non-negotiable runtime rules (PRD §6, §9, §12, §13)
+
+1. Every acquired connection/command/reader is disposed exactly once on success, exception, cancellation and early
+   enumeration exit. Cleanup failures must not hide the original failure.
+2. Never dispose a caller-owned connection; never commit or roll back a caller-owned transaction.
+3. Never retry anything implicitly. Never invent affected-row counts.
+4. Parameter values are always bound, never concatenated into SQL.
+5. Exceptions and diagnostics carry query ID, column and types — never parameter values, row values or connection strings.
+6. NULL into a non-nullable target fails in strict mode (default). Conversions are lossless only (`ValueConverter`).
+7. Cache only immutable data (descriptors, plans). Never cache `DbCommand`/`DbParameter` across calls.
+8. No AI, network or telemetry work on the query hot path. Generators/analyzers never touch a database or network.
+
+## Definition of done
+
+Acceptance tests automated and passing; lifecycle/cancellation scenarios covered; public API changes have XML docs;
+no new hot-path allocations without benchmark evidence; `dotnet build` clean with warnings as errors.

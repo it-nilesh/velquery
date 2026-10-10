@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/VelQuery.Abstractions/VelQuery.Abstractions.csproj" />
+    <Project Path="src/VelQuery.Core/VelQuery.Core.csproj" />
+    <Project Path="src/VelQuery.SqlServer/VelQuery.SqlServer.csproj" />
+  </Folder>
+</Solution>

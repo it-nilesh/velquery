@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>VelQuery</RootNamespace>
+    <IsAotCompatible>true</IsAotCompatible>
+    <Description>VelQuery execution engine: sessions, typed execution, streaming, transactions and lifecycle safety.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../VelQuery.Abstractions/VelQuery.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="VelQuery.Core.UnitTests" />
+  </ItemGroup>
+</Project>
