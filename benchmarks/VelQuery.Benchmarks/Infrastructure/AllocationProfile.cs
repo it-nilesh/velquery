@@ -22,7 +22,6 @@ public static class AllocationProfile
     public static async Task RunAsync(string connectionString)
     {
         var dataSource = VelQuerySqlServer.CreateDataSource(connectionString);
-        RowMappers<BenchRow>.Register(BenchRowMapperFactory.Instance);
         var variants = new (string Name, Func<Task<long>> Run)[]
         {
             ("raw-adonet (SequentialAccess)", () => RawAdoNet.StreamAsync(connectionString)),

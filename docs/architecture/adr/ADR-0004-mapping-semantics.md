@@ -65,6 +65,14 @@ results (VQ-FR-029).
 **Generated mappers** follow the same rules, with typed getters (`GetInt32`, `GetString`, …) and an `IsDBNull` check
 only where NULL is possible or must be rejected.
 
+**Sequential access (added 2026-10-11).** `IRowMapperFactory<T>.SupportsSequentialAccess` (default false) declares that
+mappers read each column at most once in increasing ordinal order. When true, VelQuery opens readers with
+`CommandBehavior.SequentialAccess` (combined with `SingleRow` for First operations), which lets SqlClient stream
+column values instead of buffering whole rows. Generated mappers and the scalar mapper declare it. Generated mappers
+read directly when the SELECT order matches the member read order and otherwise read into locals in ordinal order
+before constructing the row, so any column order is safe. The reflection fallback does not declare it. Multi-result
+readers keep `CommandBehavior.Default` because each result set may use a different mapper.
+
 ## Consequences
 
 - Results are identical whichever mapper runs; differential tests (generated vs reflection vs raw reader) are cheap to

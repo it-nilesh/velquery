@@ -20,10 +20,14 @@ namespace VelQuery.Generated
             return new Mapper(reader, context);
         }
 
+        public bool SupportsSequentialAccess => true;
+
         private sealed class Mapper : global::VelQuery.Mapping.IRowMapper<global::Sample.Users.UserRow>
         {
             private readonly string? _queryId;
             private readonly bool _strictNulls;
+            private readonly bool _ordered;
+            private readonly int[]? _readOrder;
             private readonly int _o0;
             private readonly bool _f0;
             private readonly int _o1;
@@ -79,15 +83,93 @@ namespace VelQuery.Generated
                 _o2 = o2;
                 var t2 = reader.GetFieldType(o2);
                 _f2 = t2 == typeof(string);
+
+                var ordered = true;
+                var last = -1;
+                if (o0 >= 0)
+                {
+                    ordered &= o0 > last;
+                    last = o0;
+                }
+                if (o1 >= 0)
+                {
+                    ordered &= o1 > last;
+                    last = o1;
+                }
+                if (o2 >= 0)
+                {
+                    ordered &= o2 > last;
+                    last = o2;
+                }
+                _ordered = ordered;
+                _readOrder = ordered ? null : SortByOrdinal(new int[] { o0, o1, o2 });
             }
 
             public global::Sample.Users.UserRow Map(global::System.Data.Common.DbDataReader reader)
             {
+                if (!_ordered)
+                {
+                    return MapUnordered(reader);
+                }
+
                 var result = new global::Sample.Users.UserRow(
                     reader.IsDBNull(_o0) ? OnNull<long>("Id") : (_f0 ? reader.GetInt64(_o0) : Convert<long>(reader, _o0, "Id")),
                     reader.IsDBNull(_o1) ? OnNull<string>("Name") : (_f1 ? reader.GetString(_o1) : Convert<string>(reader, _o1, "Name")),
                     reader.IsDBNull(_o2) ? default(string?) : (_f2 ? reader.GetString(_o2) : Convert<string>(reader, _o2, "Email")));
                 return result;
+            }
+
+            private global::Sample.Users.UserRow MapUnordered(global::System.Data.Common.DbDataReader reader)
+            {
+                long v0 = default!;
+                string v1 = default!;
+                string? v2 = default!;
+                foreach (var member in _readOrder!)
+                {
+                    switch (member)
+                    {
+                        case 0:
+                            v0 = reader.IsDBNull(_o0) ? OnNull<long>("Id") : (_f0 ? reader.GetInt64(_o0) : Convert<long>(reader, _o0, "Id"));
+                            break;
+                        case 1:
+                            v1 = reader.IsDBNull(_o1) ? OnNull<string>("Name") : (_f1 ? reader.GetString(_o1) : Convert<string>(reader, _o1, "Name"));
+                            break;
+                        case 2:
+                            v2 = reader.IsDBNull(_o2) ? default(string?) : (_f2 ? reader.GetString(_o2) : Convert<string>(reader, _o2, "Email"));
+                            break;
+                    }
+                }
+
+                var result = new global::Sample.Users.UserRow(
+                    v0,
+                    v1,
+                    v2);
+                return result;
+            }
+
+            private static int[] SortByOrdinal(int[] ordinals)
+            {
+                var count = 0;
+                foreach (var ordinal in ordinals)
+                {
+                    if (ordinal >= 0)
+                    {
+                        count++;
+                    }
+                }
+
+                var members = new int[count];
+                var next = 0;
+                for (var i = 0; i < ordinals.Length; i++)
+                {
+                    if (ordinals[i] >= 0)
+                    {
+                        members[next++] = i;
+                    }
+                }
+
+                global::System.Array.Sort(members, (x, y) => ordinals[x].CompareTo(ordinals[y]));
+                return members;
             }
 
             private int Match(int current, int ordinal, string column, global::System.Type type)

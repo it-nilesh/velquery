@@ -20,10 +20,14 @@ namespace VelQuery.Generated
             return new Mapper(reader, context);
         }
 
+        public bool SupportsSequentialAccess => true;
+
         private sealed class Mapper : global::VelQuery.Mapping.IRowMapper<global::Sample.Orders.OrderRow>
         {
             private readonly string? _queryId;
             private readonly bool _strictNulls;
+            private readonly bool _ordered;
+            private readonly int[]? _readOrder;
             private readonly int _o0;
             private readonly bool _f0;
             private readonly int _o1;
@@ -104,10 +108,50 @@ namespace VelQuery.Generated
                 _o5 = o5;
                 var t5 = reader.GetFieldType(o5);
                 _f5 = t5 == typeof(string);
+
+                var ordered = true;
+                var last = -1;
+                if (o4 >= 0)
+                {
+                    ordered &= o4 > last;
+                    last = o4;
+                }
+                if (o5 >= 0)
+                {
+                    ordered &= o5 > last;
+                    last = o5;
+                }
+                if (o0 >= 0)
+                {
+                    ordered &= o0 > last;
+                    last = o0;
+                }
+                if (o1 >= 0)
+                {
+                    ordered &= o1 > last;
+                    last = o1;
+                }
+                if (o2 >= 0)
+                {
+                    ordered &= o2 > last;
+                    last = o2;
+                }
+                if (o3 >= 0)
+                {
+                    ordered &= o3 > last;
+                    last = o3;
+                }
+                _ordered = ordered;
+                _readOrder = ordered ? null : SortByOrdinal(new int[] { o0, o1, o2, o3, o4, o5 });
             }
 
             public global::Sample.Orders.OrderRow Map(global::System.Data.Common.DbDataReader reader)
             {
+                if (!_ordered)
+                {
+                    return MapUnordered(reader);
+                }
+
                 var result = new global::Sample.Orders.OrderRow()
                 {
                     CreatedAt = reader.IsDBNull(_o4) ? OnNull<global::System.DateTimeOffset>("CreatedAt") : (_f4 ? reader.GetFieldValue<global::System.DateTimeOffset>(_o4) : Convert<global::System.DateTimeOffset>(reader, _o4, "CreatedAt")),
@@ -130,6 +174,88 @@ namespace VelQuery.Generated
                     result.Status = reader.IsDBNull(_o3) ? OnNull<global::Sample.Orders.OrderStatus>("Status") : (_f3 ? (global::Sample.Orders.OrderStatus)reader.GetByte(_o3) : Convert<global::Sample.Orders.OrderStatus>(reader, _o3, "Status"));
                 }
                 return result;
+            }
+
+            private global::Sample.Orders.OrderRow MapUnordered(global::System.Data.Common.DbDataReader reader)
+            {
+                long v0 = default!;
+                string v1 = default!;
+                decimal? v2 = default!;
+                global::Sample.Orders.OrderStatus v3 = default!;
+                global::System.DateTimeOffset v4 = default!;
+                string v5 = default!;
+                foreach (var member in _readOrder!)
+                {
+                    switch (member)
+                    {
+                        case 0:
+                            v0 = reader.IsDBNull(_o0) ? OnNull<long>("order_id") : (_f0 ? reader.GetInt64(_o0) : Convert<long>(reader, _o0, "order_id"));
+                            break;
+                        case 1:
+                            v1 = reader.IsDBNull(_o1) ? OnNull<string>("Customer") : (_f1 ? reader.GetString(_o1) : Convert<string>(reader, _o1, "Customer"));
+                            break;
+                        case 2:
+                            v2 = reader.IsDBNull(_o2) ? default(decimal?) : (_f2 ? reader.GetDecimal(_o2) : Convert<decimal>(reader, _o2, "Total"));
+                            break;
+                        case 3:
+                            v3 = reader.IsDBNull(_o3) ? OnNull<global::Sample.Orders.OrderStatus>("Status") : (_f3 ? (global::Sample.Orders.OrderStatus)reader.GetByte(_o3) : Convert<global::Sample.Orders.OrderStatus>(reader, _o3, "Status"));
+                            break;
+                        case 4:
+                            v4 = reader.IsDBNull(_o4) ? OnNull<global::System.DateTimeOffset>("CreatedAt") : (_f4 ? reader.GetFieldValue<global::System.DateTimeOffset>(_o4) : Convert<global::System.DateTimeOffset>(reader, _o4, "CreatedAt"));
+                            break;
+                        case 5:
+                            v5 = reader.IsDBNull(_o5) ? OnNull<string>("Region") : (_f5 ? reader.GetString(_o5) : Convert<string>(reader, _o5, "Region"));
+                            break;
+                    }
+                }
+
+                var result = new global::Sample.Orders.OrderRow()
+                {
+                    CreatedAt = v4,
+                    Region = v5,
+                };
+                if (_o0 >= 0)
+                {
+                    result.Id = v0;
+                }
+                if (_o1 >= 0)
+                {
+                    result.Customer = v1;
+                }
+                if (_o2 >= 0)
+                {
+                    result.Total = v2;
+                }
+                if (_o3 >= 0)
+                {
+                    result.Status = v3;
+                }
+                return result;
+            }
+
+            private static int[] SortByOrdinal(int[] ordinals)
+            {
+                var count = 0;
+                foreach (var ordinal in ordinals)
+                {
+                    if (ordinal >= 0)
+                    {
+                        count++;
+                    }
+                }
+
+                var members = new int[count];
+                var next = 0;
+                for (var i = 0; i < ordinals.Length; i++)
+                {
+                    if (ordinals[i] >= 0)
+                    {
+                        members[next++] = i;
+                    }
+                }
+
+                global::System.Array.Sort(members, (x, y) => ordinals[x].CompareTo(ordinals[y]));
+                return members;
             }
 
             private int Match(int current, int ordinal, string column, global::System.Type type)

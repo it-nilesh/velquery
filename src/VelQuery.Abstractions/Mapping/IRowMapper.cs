@@ -23,6 +23,13 @@ public interface IRowMapperFactory<out T>
     /// for that shape. Throws <see cref="VelQueryMappingException"/> if required columns are missing or ambiguous.
     /// </summary>
     IRowMapper<T> Create(DbDataReader reader, in MappingContext context);
+
+    /// <summary>
+    /// True when every mapper this factory creates reads each column at most once and in increasing ordinal order.
+    /// VelQuery then opens readers with <see cref="System.Data.CommandBehavior.SequentialAccess"/>, which lets drivers
+    /// avoid buffering whole rows. Implementations that cannot guarantee the order must return false (the default).
+    /// </summary>
+    bool SupportsSequentialAccess => false;
 }
 
 /// <summary>Per-invocation information available to row mappers.</summary>

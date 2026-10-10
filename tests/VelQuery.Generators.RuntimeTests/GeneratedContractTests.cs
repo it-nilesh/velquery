@@ -266,4 +266,55 @@ public sealed class GeneratedContractTests : IDisposable
         Assert.Throws<VelQueryMappingException>(() => strict.Map(reader));
         Assert.Equal(new UserRow(1, null!, null), lenient.Map(reader));
     }
+
+    [Fact]
+    public async Task Generated_queries_use_sequential_access_and_read_columns_in_order()
+    {
+        _connection.Result = EmptyUsers.Clone().WithRows([42L, "Ada", null]);
+        await using var session = Session();
+
+        Assert.Equal(new UserRow(42, "Ada", null), await UsersById.ExecuteAsync(session, 42, TestContext.Current.CancellationToken));
+        Assert.True((_connection.Behaviors[^1] & CommandBehavior.SequentialAccess) != 0);
+        Assert.True(RowMappers<UserRow>.Factory!.SupportsSequentialAccess);
+    }
+
+    [Fact]
+    public async Task Record_mapping_stays_sequential_when_select_order_differs_from_constructor_order()
+    {
+        _connection.Result = Tables.Create(("Email", typeof(string)), ("Name", typeof(string)), ("Id", typeof(long)))
+            .WithRows(["ada@example.com", "Ada", 42L], [null, "Bob", 7L]);
+        await using var session = Session();
+
+        var rows = new List<UserRow>();
+        await foreach (var row in UsersByState.StreamAsync(session, UserState.Active, TestContext.Current.CancellationToken))
+        {
+            rows.Add(row);
+        }
+
+        Assert.Equal([new UserRow(42, "Ada", "ada@example.com"), new UserRow(7, "Bob", null)], rows);
+    }
+
+    [Fact]
+    public async Task Class_mapping_with_optional_members_stays_sequential_when_columns_are_shuffled()
+    {
+        var created = new DateTimeOffset(2026, 10, 11, 8, 30, 0, TimeSpan.FromHours(5.5));
+        _connection.Result = Tables.Create(
+                ("Region", typeof(string)), ("Status", typeof(byte)), ("order_id", typeof(long)), ("CreatedAt", typeof(DateTimeOffset)), ("Total", typeof(decimal)))
+            .WithRows(["EU", (byte)2, 9L, created, null]);
+        await using var session = Session();
+
+        var order = Assert.Single(await OrdersSince.ExecuteAsync(session, created, customer: null, TestContext.Current.CancellationToken));
+
+        Assert.Equal((9L, "unknown", (decimal?)null, OrderStatus.Shipped, created, "EU"), (order.Id, order.Customer, order.Total, order.Status, order.CreatedAt, order.Region));
+    }
+
+    [Fact]
+    public async Task Strict_null_errors_still_apply_on_the_unordered_path()
+    {
+        _connection.Result = Tables.Create(("Name", typeof(string)), ("Id", typeof(long)), ("Email", typeof(string))).WithRows([null, 1L, null]);
+        await using var session = Session();
+
+        var ex = await Assert.ThrowsAsync<VelQueryMappingException>(() => UsersById.ExecuteAsync(session, 1, TestContext.Current.CancellationToken));
+        Assert.Equal("Name", ex.Column);
+    }
 }

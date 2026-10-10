@@ -18,7 +18,7 @@ comparison:
   - raw-adonet             # hand-optimized SqlClient: fixed ordinals, typed getters, explicit SqlDbType metadata
   - dapper                 # Dapper 2.x, [DapperAot(false)] scope (verified not intercepted)
   - dapper-aot             # Dapper.AOT interceptors, [DapperAot(true)] scope
-  - velquery-descriptor    # QueryDescriptor<TArgs,TRow> + hand-written IRowMapperFactory (stand-in for generator output)
+  - velquery-descriptor    # generated [VelQuerySql] contracts (VelQuery.Generators binders + row mapper)
   - velquery-runtime-sql   # session.QueryAsync<T>(sql, QueryParameters) + RowMappers<T>.Register mapper
 cases:
   - id: one-row-projection

@@ -17,14 +17,14 @@ public sealed partial class VelQuerySession
         ConnectionLease lease = default;
         DbCommand? command = null;
         DbDataReader? reader = null;
+        var rows = default(RowBuffer<TRow>);
         var faulted = true;
         try
         {
             lease = await AcquireAsync(cancellationToken).ConfigureAwait(false);
             command = CreateCommand(lease.Connection, spec);
-            reader = await command.ExecuteReaderAsync(CommandBehavior.Default, cancellationToken).ConfigureAwait(false);
+            reader = await command.ExecuteReaderAsync(ReaderBehavior(factory, CommandBehavior.Default), cancellationToken).ConfigureAwait(false);
             var mapper = factory.Create(reader, MappingContext(spec.QueryId));
-            var rows = new List<TRow>();
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
                 rows.Add(mapper.Map(reader));
@@ -37,7 +37,7 @@ public sealed partial class VelQuerySession
             await completed.DisposeAsync().ConfigureAwait(false);
             spec.Complete(command, StrictNulls);
             faulted = false;
-            return rows;
+            return rows.ToResult();
         }
         catch (Exception ex)
         {
@@ -45,6 +45,7 @@ public sealed partial class VelQuerySession
         }
         finally
         {
+            rows.Dispose();
             await CleanupAsync(reader, command, lease, faulted, spec.QueryId).ConfigureAwait(false);
         }
     }
@@ -61,7 +62,7 @@ public sealed partial class VelQuerySession
         {
             lease = await AcquireAsync(cancellationToken).ConfigureAwait(false);
             command = CreateCommand(lease.Connection, spec);
-            reader = await command.ExecuteReaderAsync(isFirst ? CommandBehavior.SingleRow : CommandBehavior.Default, cancellationToken).ConfigureAwait(false);
+            reader = await command.ExecuteReaderAsync(ReaderBehavior(factory, isFirst ? CommandBehavior.SingleRow : CommandBehavior.Default), cancellationToken).ConfigureAwait(false);
             var mapper = factory.Create(reader, MappingContext(spec.QueryId));
             TRow? result;
             if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
@@ -185,6 +186,13 @@ public sealed partial class VelQuerySession
             throw Translate(ex, spec.QueryId, cancellationToken);
         }
     }
+
+    /// <summary>
+    /// Adds <see cref="CommandBehavior.SequentialAccess"/> when the mapper reads columns strictly in order, so the driver
+    /// can stream column values instead of buffering each row.
+    /// </summary>
+    internal static CommandBehavior ReaderBehavior<TRow>(IRowMapperFactory<TRow> factory, CommandBehavior behavior)
+        => factory.SupportsSequentialAccess ? behavior | CommandBehavior.SequentialAccess : behavior;
 
     /// <summary>Consumes trailing result sets so errors raised by later statements in a batch are not lost.</summary>
     private static async ValueTask DrainAsync(DbDataReader reader, CancellationToken cancellationToken)

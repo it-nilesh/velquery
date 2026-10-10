@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using VelQuery.Mapping;
@@ -52,7 +53,46 @@ internal sealed class QueryStream<TSpec, TRow>(VelQuerySession session, TSpec sp
 
         public TRow Current { get; private set; } = default!;
 
-        public async ValueTask<bool> MoveNextAsync()
+        /// <summary>
+        /// Fast path: when the driver already has the next row buffered, <c>ReadAsync</c> completes synchronously and the
+        /// row is mapped without entering an async state machine, so steady-state streaming allocates nothing per row
+        /// beyond the mapped value.
+        /// </summary>
+        public ValueTask<bool> MoveNextAsync()
+        {
+            if (_started && !_finished && _reader is { } reader)
+            {
+                Task<bool> read;
+                try
+                {
+                    read = reader.ReadAsync(_token);
+                }
+                catch (Exception ex)
+                {
+                    return FailAsync(ex);
+                }
+
+                if (read.IsCompletedSuccessfully && read.Result)
+                {
+                    try
+                    {
+                        Current = _mapper!.Map(reader);
+                        return new ValueTask<bool>(true);
+                    }
+                    catch (Exception ex)
+                    {
+                        return FailAsync(ex);
+                    }
+                }
+
+                return MoveNextSlowAsync(read);
+            }
+
+            return MoveNextSlowAsync(null);
+        }
+
+        [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
+        private async ValueTask<bool> MoveNextSlowAsync(Task<bool>? pendingRead)
         {
             if (_finished)
             {
@@ -66,17 +106,18 @@ internal sealed class QueryStream<TSpec, TRow>(VelQuerySession session, TSpec sp
                     _started = true;
                     _lease = await _session.AcquireAsync(_token).ConfigureAwait(false);
                     _command = _session.CreateCommand(_lease.Connection, _spec);
-                    _reader = await _command.ExecuteReaderAsync(CommandBehavior.Default, _token).ConfigureAwait(false);
+                    _reader = await _command.ExecuteReaderAsync(VelQuerySession.ReaderBehavior(_factory, CommandBehavior.Default), _token).ConfigureAwait(false);
                     _mapper = _factory.Create(_reader, _session.MappingContext(_spec.QueryId));
                 }
 
-                if (await _reader!.ReadAsync(_token).ConfigureAwait(false))
+                // A read issued by the fast path must be awaited, never re-issued.
+                if (await (pendingRead ?? _reader!.ReadAsync(_token)).ConfigureAwait(false))
                 {
-                    Current = _mapper!.Map(_reader);
+                    Current = _mapper!.Map(_reader!);
                     return true;
                 }
 
-                while (await _reader.NextResultAsync(_token).ConfigureAwait(false))
+                while (await _reader!.NextResultAsync(_token).ConfigureAwait(false))
                 {
                 }
 
@@ -94,6 +135,12 @@ internal sealed class QueryStream<TSpec, TRow>(VelQuerySession session, TSpec sp
                 await FinishAsync(faulted: true).ConfigureAwait(false);
                 throw _session.Translate(ex, _spec.QueryId, _token);
             }
+        }
+
+        private async ValueTask<bool> FailAsync(Exception exception)
+        {
+            await FinishAsync(faulted: true).ConfigureAwait(false);
+            throw _session.Translate(exception, _spec.QueryId, _token);
         }
 
         public ValueTask DisposeAsync()

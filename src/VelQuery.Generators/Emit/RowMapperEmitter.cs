@@ -10,6 +10,12 @@ namespace VelQuery.Generators.Emit;
 /// reader shape, rejects duplicate matching columns and fails fast on missing required columns. <c>Map</c> uses typed
 /// getters when the provider field type matches and lossless <c>ValueConverter</c> conversion otherwise, with strict
 /// NULL checks driven by the member's nullability.
+/// <para>
+/// Mappers always read columns in increasing ordinal order, so the factory reports
+/// <c>SupportsSequentialAccess</c> and VelQuery can use <c>CommandBehavior.SequentialAccess</c>. When the SELECT order
+/// matches the member read order (the usual case) <c>Map</c> reads directly; otherwise it reads into locals in ordinal
+/// order and then constructs the row.
+/// </para>
 /// </summary>
 internal static class RowMapperEmitter
 {
@@ -34,10 +40,14 @@ internal static class RowMapperEmitter
         writer.Line("return new Mapper(reader, context);");
         writer.Close();
         writer.Line();
+        writer.Line("public bool SupportsSequentialAccess => true;");
+        writer.Line();
 
         writer.Open($"private sealed class Mapper : global::VelQuery.Mapping.IRowMapper<{plan.Type}>");
         writer.Line("private readonly string? _queryId;");
         writer.Line("private readonly bool _strictNulls;");
+        writer.Line("private readonly bool _ordered;");
+        writer.Line("private readonly int[]? _readOrder;");
         for (var i = 0; i < members.Count; i++)
         {
             writer.Line($"private readonly int _o{i};");
@@ -48,6 +58,28 @@ internal static class RowMapperEmitter
         EmitConstructor(writer, members);
         writer.Line();
         EmitMap(writer, plan);
+        writer.Line();
+        EmitMapUnordered(writer, plan);
+        writer.Line();
+        writer.Open("private static int[] SortByOrdinal(int[] ordinals)");
+        writer.Line("var count = 0;");
+        writer.Open("foreach (var ordinal in ordinals)");
+        writer.Open("if (ordinal >= 0)");
+        writer.Line("count++;");
+        writer.Close();
+        writer.Close();
+        writer.Line();
+        writer.Line("var members = new int[count];");
+        writer.Line("var next = 0;");
+        writer.Open("for (var i = 0; i < ordinals.Length; i++)");
+        writer.Open("if (ordinals[i] >= 0)");
+        writer.Line("members[next++] = i;");
+        writer.Close();
+        writer.Close();
+        writer.Line();
+        writer.Line("global::System.Array.Sort(members, (x, y) => ordinals[x].CompareTo(ordinals[y]));");
+        writer.Line("return members;");
+        writer.Close();
         writer.Line();
         writer.Open("private int Match(int current, int ordinal, string column, global::System.Type type)");
         writer.Open("if (current >= 0)");
@@ -119,13 +151,79 @@ internal static class RowMapperEmitter
             writer.Line($"_f{i} = {fast};");
         }
 
+        writer.Line();
+        writer.Line("var ordered = true;");
+        writer.Line("var last = -1;");
+        foreach (var i in ReadSequence(members))
+        {
+            writer.Open($"if (o{i} >= 0)");
+            writer.Line($"ordered &= o{i} > last;");
+            writer.Line($"last = o{i};");
+            writer.Close();
+        }
+
+        writer.Line("_ordered = ordered;");
+        var all = string.Join(", ", Enumerable.Range(0, members.Count).Select(i => $"o{i}"));
+        writer.Line($"_readOrder = ordered ? null : SortByOrdinal(new int[] {{ {all} }});");
         writer.Close();
+    }
+
+    /// <summary>The order in which the direct <c>Map</c> reads members: constructor, initializers, then optional.</summary>
+    private static IEnumerable<int> ReadSequence(EquatableArray<RowMemberModel> members)
+    {
+        foreach (var kind in new[] { MemberKind.Constructor, MemberKind.Initializer, MemberKind.Optional })
+        {
+            for (var i = 0; i < members.Count; i++)
+            {
+                if (members[i].Kind == kind)
+                {
+                    yield return i;
+                }
+            }
+        }
     }
 
     private static void EmitMap(CodeWriter writer, RowPlan plan)
     {
-        var members = plan.Members;
         writer.Open($"public {plan.Type} Map({Reader} reader)");
+        writer.Open("if (!_ordered)");
+        writer.Line("return MapUnordered(reader);");
+        writer.Close();
+        writer.Line();
+        EmitConstruction(writer, plan, i => Read(plan.Members[i], i));
+        writer.Close();
+    }
+
+    private static void EmitMapUnordered(CodeWriter writer, RowPlan plan)
+    {
+        var members = plan.Members;
+        writer.Open($"private {plan.Type} MapUnordered({Reader} reader)");
+        for (var i = 0; i < members.Count; i++)
+        {
+            writer.Line($"{members[i].Type} v{i} = default!;");
+        }
+
+        writer.Open("foreach (var member in _readOrder!)");
+        writer.Open("switch (member)");
+        for (var i = 0; i < members.Count; i++)
+        {
+            writer.Line($"case {i}:");
+            writer.Indent();
+            writer.Line($"v{i} = {Read(members[i], i)};");
+            writer.Line("break;");
+            writer.Outdent();
+        }
+
+        writer.Close();
+        writer.Close();
+        writer.Line();
+        EmitConstruction(writer, plan, i => $"v{i}");
+        writer.Close();
+    }
+
+    private static void EmitConstruction(CodeWriter writer, RowPlan plan, System.Func<int, string> value)
+    {
+        var members = plan.Members;
         var ctorArgs = new List<string>();
         var initializers = new List<string>();
         for (var i = 0; i < members.Count; i++)
@@ -133,10 +231,10 @@ internal static class RowMapperEmitter
             switch (members[i].Kind)
             {
                 case MemberKind.Constructor:
-                    ctorArgs.Add(Read(members[i], i));
+                    ctorArgs.Add(value(i));
                     break;
                 case MemberKind.Initializer:
-                    initializers.Add($"{members[i].Name} = {Read(members[i], i)},");
+                    initializers.Add($"{members[i].Name} = {value(i)},");
                     break;
             }
         }
@@ -179,12 +277,11 @@ internal static class RowMapperEmitter
             }
 
             writer.Open($"if (_o{i} >= 0)");
-            writer.Line($"result.{members[i].Name} = {Read(members[i], i)};");
+            writer.Line($"result.{members[i].Name} = {value(i)};");
             writer.Close();
         }
 
         writer.Line("return result;");
-        writer.Close();
     }
 
     private static string Read(RowMemberModel member, int index)

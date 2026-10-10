@@ -15,7 +15,7 @@ BenchmarkDotNet suite comparing **raw ADO.NET**, **Dapper**, **Dapper.AOT** and 
 | `raw-adonet` (baseline) | Hand-optimized SqlClient: fixed ordinals, typed getters, explicit `SqlDbType`/size/precision/scale, `SequentialAccess` |
 | `dapper` | Dapper 2.x, call sites in a `[DapperAot(false)]` class: reflection/IL-emit path |
 | `dapper-aot` | Identical call sites in a `[DapperAot(true)]` class: replaced at build time by Dapper.AOT interceptors |
-| `velquery-descriptor` | `QueryDescriptor<TArgs,TRow>` + a hand-written `IRowMapperFactory<BenchRow>` that mimics the planned generator output (ordinals resolved once per reader in `Create`, typed getters) |
+| `velquery-descriptor` | Generated `[VelQuerySql]` contracts: VelQuery.Generators emits the binders and the `BenchRow` mapper (ordinals resolved once per reader, typed getters, columns read in order so `SequentialAccess` is used) |
 | `velquery-runtime-sql` | `session.QueryAsync<T>(sql, QueryParameters)` etc.; the same mapper registered through `RowMappers<T>.Register` (no reflection fallback) |
 
 Cases: `one-row-projection`, `scalar-count`, `buffered-100`, `buffered-1000`, `stream-100k` (warmup 2, 5 iterations),
@@ -105,5 +105,3 @@ Every `InterceptsLocation` line must point into `DapperLibraries.cs` lines insid
 - p95 is reported; p99 from a short run is not meaningful (too few samples). Use the full job for percentiles.
 - Loopback container DB: network latency is not represented, and container/VM scheduling adds noise.
 - No EF Core, RepoDB or LINQ to DB baselines yet (PRD §14.1 lists them).
-- `velquery-descriptor` uses a hand-written mapper; replace it with real generator output once
-  `VelQuery.Generators` lands, and keep the hand-written one only if it still differs.

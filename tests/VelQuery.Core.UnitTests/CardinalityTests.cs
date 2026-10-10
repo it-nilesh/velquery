@@ -111,7 +111,8 @@ public sealed class CardinalityTests
         else
         {
             Assert.Equal(Values[0], await First(s, path));
-            Assert.Equal(CommandBehavior.SingleRow, Assert.Single(h.Db.Commands).Behavior);
+            // Scalar mappers read one column in order, so the single-row hint is combined with sequential access.
+            Assert.Equal(CommandBehavior.SingleRow | CommandBehavior.SequentialAccess, Assert.Single(h.Db.Commands).Behavior);
         }
 
         h.Db.AssertAllReleasedExactlyOnce();

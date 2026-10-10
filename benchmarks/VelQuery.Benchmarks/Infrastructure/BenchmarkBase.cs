@@ -31,9 +31,8 @@ public abstract class BenchmarkBase
                 $"{BenchDatabase.ConnectionStringVariable} is not set. Run through Program (which starts the container) or set it explicitly.");
 
         // Logging/diagnostics off; strict mapping on (VelQuery defaults). No dynamic fallback: the runtime-SQL variant
-        // must resolve the registered mapper, exactly as generated module initializers will register it.
+        // must resolve the mapper the generated module initializer registered.
         DataSource = VelQuerySqlServer.CreateDataSource(ConnectionString, new VelQueryOptions { AllowDynamicFallback = false });
-        RowMappers<BenchRow>.Register(BenchRowMapperFactory.Instance);
 
         TypedValues = await ReadTypedValuesAsync(ConnectionString);
         await VerifyAsync();
