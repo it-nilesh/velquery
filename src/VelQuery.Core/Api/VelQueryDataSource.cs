@@ -1,6 +1,7 @@
 using System;
 using System.Data;
 using System.Data.Common;
+using System.Threading.Tasks;
 using VelQuery.Providers;
 
 namespace VelQuery;
@@ -9,7 +10,7 @@ namespace VelQuery;
 /// Entry point that combines a provider, an optional connection factory and immutable options. Thread-safe; create
 /// one per database and share it.
 /// </summary>
-public sealed class VelQueryDataSource
+public sealed class VelQueryDataSource : IAsyncDisposable, IDisposable
 {
     private readonly IVelQueryConnectionFactory? _connectionFactory;
 
@@ -24,6 +25,13 @@ public sealed class VelQueryDataSource
         _connectionFactory = connectionFactory;
         Options = (options ?? new VelQueryOptions()).Resolve();
     }
+
+    /// <summary>Disposes the connection factory if it is disposable (for example a factory that owns its driver data source).</summary>
+    public ValueTask DisposeAsync()
+        => _connectionFactory is IAsyncDisposable disposable ? disposable.DisposeAsync() : ValueTask.CompletedTask;
+
+    /// <summary>Disposes the connection factory if it is disposable.</summary>
+    public void Dispose() => (_connectionFactory as IDisposable)?.Dispose();
 
     /// <summary>The provider.</summary>
     public IVelQueryProvider Provider { get; }

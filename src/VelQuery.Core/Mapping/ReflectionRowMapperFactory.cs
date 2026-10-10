@@ -22,8 +22,8 @@ public static class ReflectionRowMapperFactory
 /// constructors and properties. It invokes members but never emits code. Rules mirror the generated mapper:
 /// <list type="bullet">
 /// <item>Column names match members via <see cref="ColumnAttribute"/> or the member name, case-insensitively.</item>
-/// <item>A public parameterless constructor plus settable properties is preferred; otherwise the public constructor
-/// whose parameters all match columns, with the most parameters, is used (records).</item>
+/// <item>A public parameterless constructor plus settable properties is preferred; otherwise the single widest public
+/// constructor is used (records) and every one of its parameters must match a column. Ties are rejected.</item>
 /// <item>Constructor parameters and <c>required</c> properties must be present; extra columns are ignored.</item>
 /// <item>Two result columns matching the same member are rejected as ambiguous (VQ-FR-015).</item>
 /// <item>NULL into a non-nullable value type, or into a reference type annotated non-nullable, fails in strict mode.</item>
@@ -74,7 +74,7 @@ internal sealed class ReflectionRowMapperFactory<[DynamicallyAccessedMembers(Ref
         if (plan.Constructor is null)
         {
             throw new VelQueryMappingException(context.QueryId, null, typeof(T),
-                "the type has no public parameterless constructor or record-style constructor that can be mapped.");
+                "the type needs a public parameterless constructor or exactly one widest public constructor.");
         }
 
         var ctorOrdinals = plan.ConstructorParameters.Select(p => Ordinal(p, required: true)).ToArray();
@@ -102,7 +102,10 @@ internal sealed class ReflectionRowMapperFactory<[DynamicallyAccessedMembers(Ref
         MemberPlan[] ctorMembers = [];
         if (parameterless is null)
         {
-            constructor = constructors.OrderByDescending(c => c.GetParameters().Length).FirstOrDefault();
+            // Same rule as the generator (VQ1003): the widest public constructor, rejecting ties rather than guessing.
+            var widest = constructors.Length == 0 ? 0 : constructors.Max(c => c.GetParameters().Length);
+            var candidates = constructors.Where(c => c.GetParameters().Length == widest).ToArray();
+            constructor = candidates.Length == 1 ? candidates[0] : null;
             if (constructor is not null)
             {
                 ctorMembers = constructor.GetParameters().Select(parameter =>

@@ -16,15 +16,31 @@ public interface IVelQueryConnectionFactory
 }
 
 /// <summary>Connection factory backed by an ADO.NET <see cref="DbDataSource"/> owned by the application.</summary>
-public sealed class DataSourceConnectionFactory : IVelQueryConnectionFactory
+public sealed class DataSourceConnectionFactory : IVelQueryConnectionFactory, IAsyncDisposable, IDisposable
 {
     private readonly DbDataSource _dataSource;
+    private readonly bool _ownsDataSource;
 
-    /// <summary>Creates a factory over <paramref name="dataSource"/>. The caller retains ownership of the data source.</summary>
-    public DataSourceConnectionFactory(DbDataSource dataSource)
+    /// <summary>Creates a factory over <paramref name="dataSource"/>.</summary>
+    /// <param name="dataSource">The driver data source.</param>
+    /// <param name="ownsDataSource">When true, disposing the factory disposes the data source; otherwise the caller keeps ownership.</param>
+    public DataSourceConnectionFactory(DbDataSource dataSource, bool ownsDataSource = false)
     {
         ArgumentNullException.ThrowIfNull(dataSource);
         _dataSource = dataSource;
+        _ownsDataSource = ownsDataSource;
+    }
+
+    /// <inheritdoc />
+    public ValueTask DisposeAsync() => _ownsDataSource ? _dataSource.DisposeAsync() : ValueTask.CompletedTask;
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        if (_ownsDataSource)
+        {
+            _dataSource.Dispose();
+        }
     }
 
     /// <inheritdoc />

@@ -12,7 +12,7 @@ namespace VelQuery;
 /// The VelQuery query surface (decision D-01). Descriptor overloads are the generated, reflection-free path; string
 /// overloads run runtime SQL with explicit <see cref="QueryParameters"/>.
 /// </summary>
-public interface IVelQuerySession : IAsyncDisposable
+public interface IVelQuerySession : IAsyncDisposable, IDisposable
 {
     /// <summary>Buffers all rows in reader order; empty results yield an empty list (VQ-FR-002).</summary>
     Task<IReadOnlyList<TRow>> QueryAsync<TArgs, TRow>(QueryDescriptor<TArgs, TRow> query, TArgs args, CancellationToken cancellationToken = default);

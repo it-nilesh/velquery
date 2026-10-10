@@ -37,7 +37,7 @@ SQL Server 2022 (x64, `mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04`), 
 | Non-query (`ExecuteAsync`) | VQ-FR-006 | Implemented | |
 | Typed parameters: int, nvarchar(n), decimal(p,s), datetime2, bit | VQ-FR-007/008 | Smoke (E1) | Explicit size/precision/scale via `ParameterSpec` and `QueryParameters` |
 | String/binary size bucketing (4000/8000/MAX) | §9.4 | Implemented | Plan-cache behaviour not yet verified |
-| Other types (Guid, DateTimeOffset, binary, enums, DateOnly/TimeOnly) | VQ-FR-014 | Implemented | `DateOnly`/`TimeOnly` mapping has a known gap (ADR-0004 open question) |
+| Other types (Guid, DateTimeOffset, binary, enums, DateOnly/TimeOnly) | VQ-FR-014 | Implemented | `DateOnly`/`TimeOnly` conversion added; not yet integration-tested against `date`/`time` columns |
 | Unsigned integer / `sbyte` parameters | — | Unsupported by SqlClient | Fail at execution time (ADR-0005) |
 | Cancellation (connect / execute / read) | VQ-FR-009 | Implemented | Not yet verified |
 | Command timeout precedence | VQ-FR-010 | Implemented | Provider timeout (`Number -2`) → `VelQueryTimeoutException`; not yet verified by a test. One unexplained provider timeout was observed during a streaming benchmark on E1 (see `benchmarks/results/2026-10-10-apple-m5pro-shortrun/environment.md`) |

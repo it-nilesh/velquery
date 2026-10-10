@@ -37,8 +37,15 @@ public class QueryDescriptor<TArgs>
     /// <summary>The command type.</summary>
     public CommandType CommandType { get; }
 
-    /// <summary>Default timeout for this query; overridden by per-call options.</summary>
+    /// <summary>Timeout for this query. Takes precedence over session and data-source defaults.</summary>
     public TimeSpan? CommandTimeout { get; }
+
+    /// <summary>
+    /// Returns a copy with a different <see cref="CommandTimeout"/> for a single call (VQ-FR-010). Cache the result
+    /// if it is reused; the original descriptor is unchanged.
+    /// </summary>
+    public QueryDescriptor<TArgs> WithCommandTimeout(TimeSpan? commandTimeout)
+        => new(QueryId, Sql, Binder, CommandType, commandTimeout);
 
     /// <inheritdoc />
     public override string ToString() => QueryId;
@@ -58,6 +65,10 @@ public sealed class QueryDescriptor<TArgs, TRow> : QueryDescriptor<TArgs>
 
     /// <summary>The row mapper factory.</summary>
     public IRowMapperFactory<TRow> Mapper { get; }
+
+    /// <inheritdoc cref="QueryDescriptor{TArgs}.WithCommandTimeout"/>
+    public new QueryDescriptor<TArgs, TRow> WithCommandTimeout(TimeSpan? commandTimeout)
+        => new(QueryId, Sql, Mapper, Binder, CommandType, commandTimeout);
 }
 
 /// <summary>Argument type for queries without parameters.</summary>

@@ -75,6 +75,18 @@ public sealed class VelQueryTransaction : IAsyncDisposable
         }
     }
 
+    /// <summary>Synchronous rollback-and-release used by <see cref="VelQuerySession.Dispose"/>.</summary>
+    internal void DisposeWithoutSession()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _transaction.Dispose();
+    }
+
     private void EnsureActive()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);

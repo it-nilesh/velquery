@@ -171,6 +171,34 @@ public sealed partial class VelQuerySession : IVelQuerySession
         }
     }
 
+    /// <summary>
+    /// Synchronous disposal for hosts that dispose scopes synchronously (for example dependency-injection scopes).
+    /// Same guarantees as <see cref="DisposeAsync"/>; prefer <c>await using</c>.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        if (_transactionScope is { } scope)
+        {
+            _transactionScope = null;
+            _transaction = null;
+            scope.DisposeWithoutSession();
+        }
+
+        if (_pinnedConnectionOwned)
+        {
+            var connection = _pinnedConnection;
+            _pinnedConnection = null;
+            _pinnedConnectionOwned = false;
+            connection?.Dispose();
+        }
+    }
+
     private async ValueTask UnpinOwnedConnectionAsync()
     {
         var connection = _pinnedConnection;

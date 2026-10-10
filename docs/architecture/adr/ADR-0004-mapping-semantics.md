@@ -92,15 +92,11 @@ only where NULL is possible or must be rejected.
 
 ## Open questions
 
-- **`DateOnly`/`TimeOnly` are declared scalars but have no conversion path.** SqlClient's `GetValue` returns
-  `DateTime` for `date` and `TimeSpan` for `time`, and `ValueConverter` does not convert those, so mapping a `date`
-  column to `DateOnly` currently fails. Either add exact `DateTime`→`DateOnly` (when `TimeOfDay == 0`) and
-  `TimeSpan`→`TimeOnly` conversions or have mappers use `GetFieldValue<DateOnly>`. Same question for `char` from a
-  one-character string. Needs integration tests. (Tech Lead, Gate B)
-- The reflection mapper's XML doc says the chosen constructor is "the public constructor whose parameters all match
-  columns, with the most parameters", but the code picks the widest constructor regardless of the result columns and
-  fails if any parameter is missing; ties are resolved by reflection order. Align doc and code, and make ties an
-  error (VQ1003). (Tech Lead, Gate B)
+- *Resolved 2026-10-10:* `ValueConverter` now converts midnight `DateTime` → `DateOnly`, sub-day `TimeSpan` →
+  `TimeOnly` and one-character `string` → `char`, rejecting anything lossy. Still needs SQL Server integration tests
+  for `date`/`time` columns. (Tech Lead, Gate B)
+- *Resolved 2026-10-10:* the reflection mapper uses the generator's rule — the single widest public constructor,
+  ties rejected with `VelQueryMappingException` (the generator reports VQ1003) — and its XML doc says so.
 - Custom type handlers (§9.3 rule 7) are compile-time only: define their declaration form with the generator.
   (Compiler lead, Gate C)
 - Should ordinal resolution be cached per reader shape (e.g. keyed by field-count + names) once benchmarks justify

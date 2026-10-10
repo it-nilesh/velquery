@@ -11,12 +11,13 @@ public static class VelQuerySqlServer
     /// <summary>
     /// Creates a data source over a SqlClient <see cref="System.Data.Common.DbDataSource"/> built from
     /// <paramref name="connectionString"/>. Connections come from SqlClient's pool; VelQuery adds no pooling.
+    /// Disposing the returned data source disposes the SqlClient data source.
     /// </summary>
     public static VelQueryDataSource CreateDataSource(string connectionString, VelQueryOptions? options = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         var dataSource = SqlClientFactory.Instance.CreateDataSource(connectionString);
-        return new VelQueryDataSource(SqlServerProvider.Instance, new DataSourceConnectionFactory(dataSource), options);
+        return new VelQueryDataSource(SqlServerProvider.Instance, new DataSourceConnectionFactory(dataSource, ownsDataSource: true), options);
     }
 
     /// <summary>

@@ -66,7 +66,8 @@ first cleanup failure is rethrown.
 - Commit/rollback/begin failures → `VelQueryTransactionException`; a failed commit states that the database decides
   whether changes were applied. Nothing is retried (§13.1).
 
-**Timeouts (VQ-FR-010).** Precedence: per call (`session.Sql(...).WithTimeout(t)` or descriptor `CommandTimeout`) >
+**Timeouts (VQ-FR-010).** Precedence: per call (`session.Sql(...).WithTimeout(t)`, or a descriptor's `CommandTimeout`, overridable for one
+call with `descriptor.WithCommandTimeout(t)`) >
 `session.CommandTimeout` > `VelQueryOptions.DefaultTimeout` > provider default (SqlClient: 30 s). Zero/negative
 values are rejected; `Timeout.InfiniteTimeSpan` maps to ADO.NET `0`; partial seconds round up. Timeouts are the
 provider's per-command timeout, not an end-to-end deadline (§8.2).
@@ -89,10 +90,12 @@ an `Action<T>` over a struct would mutate a copy anyway.
   such as `catch (SqlException ex) when (ex.Number == 2627)` becomes
   `catch (VelQueryProviderException ex) when (ex.InnerException is SqlException { Number: 2627 })`. Provider-specific
   helpers (e.g. an error-number accessor) may be added later without changing the contract.
-- `AddVelQuerySqlServer` registers `IVelQuerySession` as scoped; `VelQuerySession` implements only `IAsyncDisposable`,
-  so a DI scope disposed synchronously (`using var scope = sp.CreateScope()`) throws `InvalidOperationException`.
-  ASP.NET Core disposes request scopes asynchronously, so typical web apps are unaffected; workers must use
-  `CreateAsyncScope()`.
+- `AddVelQuerySqlServer` registers `IVelQuerySession` as scoped. Sessions implement both `IAsyncDisposable` and
+  `IDisposable` so synchronously disposed DI scopes work; synchronous disposal gives the same rollback/release
+  guarantees but blocks on driver I/O, so `await using`/`CreateAsyncScope()` remain preferred.
+- `VelQuerySqlServer.CreateDataSource` creates the SqlClient `DbDataSource` and the returned `VelQueryDataSource` owns
+  it (disposing one disposes the other). A `DataSourceConnectionFactory` built over an application-supplied data source
+  does not dispose it unless constructed with `ownsDataSource: true`.
 
 ## Alternatives considered
 
