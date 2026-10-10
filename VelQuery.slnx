@@ -3,9 +3,14 @@
     <Project Path="src/VelQuery.Abstractions/VelQuery.Abstractions.csproj" />
     <Project Path="src/VelQuery.Core/VelQuery.Core.csproj" />
     <Project Path="src/VelQuery.SqlServer/VelQuery.SqlServer.csproj" />
+    <Project Path="src/VelQuery.Generators/VelQuery.Generators.csproj" />
+    <Project Path="src/VelQuery.Analyzers/VelQuery.Analyzers.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/VelQuery.Core.UnitTests/VelQuery.Core.UnitTests.csproj" />
+    <Project Path="tests/VelQuery.Generators.GoldenTests/VelQuery.Generators.GoldenTests.csproj" />
+    <Project Path="tests/VelQuery.Generators.RuntimeTests/VelQuery.Generators.RuntimeTests.csproj" />
+    <Project Path="tests/VelQuery.Analyzers.Tests/VelQuery.Analyzers.Tests.csproj" />
     <Project Path="tests/VelQuery.SqlServer.IntegrationTests/VelQuery.SqlServer.IntegrationTests.csproj" />
   </Folder>
   <Folder Name="/benchmarks/">
