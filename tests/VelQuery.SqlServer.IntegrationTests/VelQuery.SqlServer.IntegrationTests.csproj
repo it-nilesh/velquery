@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/VelQuery.SqlServer/VelQuery.SqlServer.csproj" />
+    <ProjectReference Include="../../src/VelQuery.Generators/VelQuery.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="xunit.v3" />

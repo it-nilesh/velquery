@@ -88,3 +88,31 @@ public static partial class ArchiveAudit
 {
     public static partial Task<int> ExecuteAsync(IVelQuerySession session, [VelQueryParameter(Precision = 18, Scale = 4)] decimal threshold, [VelQueryParameter(Name = "Batch")] int? batchSize);
 }
+
+/// <summary>A row type whose constructor rejects a valid NULL; used to prove constructor failures aren't reported as NULL errors.</summary>
+public sealed class ValidatedUser
+{
+    public ValidatedUser(long id, string name, string? email)
+    {
+        if (email is null)
+        {
+            throw new ArgumentException("Email is required by this type.", nameof(email));
+        }
+
+        Id = id;
+        Name = name;
+        Email = email;
+    }
+
+    public long Id { get; }
+
+    public string Name { get; }
+
+    public string Email { get; }
+}
+
+[VelQuerySql("users.validated", "SELECT Id, Name, Email FROM dbo.Users")]
+public static partial class ValidatedUsers
+{
+    public static partial Task<IReadOnlyList<ValidatedUser>> ExecuteAsync(IVelQuerySession session, CancellationToken cancellationToken = default);
+}

@@ -317,4 +317,37 @@ public sealed class GeneratedContractTests : IDisposable
         var ex = await Assert.ThrowsAsync<VelQueryMappingException>(() => UsersById.ExecuteAsync(session, 1, TestContext.Current.CancellationToken));
         Assert.Equal("Name", ex.Column);
     }
+
+    [Fact]
+    public async Task Non_strict_sessions_map_null_into_non_nullable_members_as_default()
+    {
+        _connection.Result = EmptyUsers.Clone().WithRows([7L, null, null]);
+        await using var session = new VelQueryDataSource(new TestProvider(), connectionFactory: null, new VelQueryOptions { StrictMapping = false })
+            .CreateSession(_connection);
+
+        var user = await UsersById.ExecuteAsync(session, 7, TestContext.Current.CancellationToken);
+
+        Assert.Equal(new UserRow(7, null!, null), user);
+    }
+
+    [Fact]
+    public async Task Row_type_constructor_failures_are_not_reported_as_null_errors()
+    {
+        _connection.Result = EmptyUsers.Clone().WithRows([1L, "Ada", null]);
+        await using var session = Session();
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => ValidatedUsers.ExecuteAsync(session, TestContext.Current.CancellationToken));
+        Assert.Equal("email", ex.ParamName);
+    }
+
+    [Fact]
+    public async Task Strict_null_error_names_the_failing_column_on_the_fast_path()
+    {
+        _connection.Result = EmptyUsers.Clone().WithRows([null, "Ada", null]);
+        await using var session = Session();
+
+        var ex = await Assert.ThrowsAsync<VelQueryMappingException>(() => UsersById.ExecuteAsync(session, 1, TestContext.Current.CancellationToken));
+        Assert.Equal("Id", ex.Column);
+        Assert.Equal(typeof(long), ex.TargetType);
+    }
 }

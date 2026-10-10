@@ -183,15 +183,95 @@ internal static class RowMapperEmitter
         }
     }
 
+    /// <summary>
+    /// Emits the strict fast path. Non-nullable members call the typed getter without a preceding <c>IsDBNull</c> (the
+    /// same work as hand-written ADO.NET); if a getter throws, an exception filter checks <c>IsDBNull</c> on that same
+    /// column (allowed under SequentialAccess) and reports the strict NULL error. Non-strict sessions use
+    /// <c>MapChecked</c>, which tests every column, because a NULL there is data rather than an error.
+    /// </summary>
     private static void EmitMap(CodeWriter writer, RowPlan plan)
     {
+        var members = plan.Members;
         writer.Open($"public {plan.Type} Map({Reader} reader)");
         writer.Open("if (!_ordered)");
         writer.Line("return MapUnordered(reader);");
         writer.Close();
         writer.Line();
-        EmitConstruction(writer, plan, i => Read(plan.Members[i], i));
+        writer.Open("if (!_strictNulls)");
+        writer.Line("return MapChecked(reader);");
         writer.Close();
+        writer.Line();
+        writer.Line("var member = -1;");
+        writer.Open("try");
+        foreach (var i in ReadSequence(members))
+        {
+            var member = members[i];
+            var value = member.IsNullable ? Read(member, i) : ReadNonNull(member, i);
+            if (member.Kind == MemberKind.Optional)
+            {
+                writer.Line($"{member.Type} v{i} = default!;");
+                writer.Open($"if (_o{i} >= 0)");
+                writer.Line($"member = {i};");
+                writer.Line($"v{i} = {value};");
+                writer.Close();
+            }
+            else
+            {
+                writer.Line($"member = {i};");
+                writer.Line($"{member.Type} v{i} = {value};");
+            }
+        }
+
+        writer.Line();
+        writer.Line("// Reads are done; failures from here on (e.g. the row type's constructor) are not NULL errors.");
+        writer.Line("member = -1;");
+        EmitConstruction(writer, plan, i => $"v{i}");
+        writer.Close();
+        writer.Open("catch (global::System.Exception) when (member >= 0 && reader.IsDBNull(OrdinalOf(member)))");
+        writer.Line("throw NullError(member);");
+        writer.Close();
+        writer.Close();
+        writer.Line();
+
+        writer.Open($"private {plan.Type} MapChecked({Reader} reader)");
+        EmitConstruction(writer, plan, i => Read(members[i], i));
+        writer.Close();
+        writer.Line();
+
+        writer.Open("private int OrdinalOf(int member)");
+        writer.Open("switch (member)");
+        for (var i = 0; i < members.Count; i++)
+        {
+            writer.Line($"case {i}: return _o{i};");
+        }
+
+        writer.Line("default: return -1;");
+        writer.Close();
+        writer.Close();
+        writer.Line();
+
+        writer.Open($"private {MappingException} NullError(int member)");
+        writer.Open("switch (member)");
+        for (var i = 0; i < members.Count; i++)
+        {
+            writer.Line($"case {i}: return {MappingException}.NullToNonNullable(_queryId, {ContractEmitter.Literal(members[i].Column)}, typeof({members[i].ValueType}));");
+        }
+
+        writer.Line($"default: throw new global::System.ArgumentOutOfRangeException(nameof(member));");
+        writer.Close();
+        writer.Close();
+    }
+
+    /// <summary>A read that assumes NOT NULL; NULL surfaces as a getter exception handled by the caller's filter.</summary>
+    private static string ReadNonNull(RowMemberModel member, int index)
+    {
+        var typed = $"reader.{member.Getter}(_o{index})";
+        if (member.EnumCast is not null)
+        {
+            typed = $"({member.EnumCast}){typed}";
+        }
+
+        return $"(_f{index} ? {typed} : Convert<{member.ValueType}>(reader, _o{index}, {ContractEmitter.Literal(member.Column)}))";
     }
 
     private static void EmitMapUnordered(CodeWriter writer, RowPlan plan)

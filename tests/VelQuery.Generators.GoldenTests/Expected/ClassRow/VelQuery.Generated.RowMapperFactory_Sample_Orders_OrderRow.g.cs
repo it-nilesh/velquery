@@ -152,6 +152,76 @@ namespace VelQuery.Generated
                     return MapUnordered(reader);
                 }
 
+                if (!_strictNulls)
+                {
+                    return MapChecked(reader);
+                }
+
+                var member = -1;
+                try
+                {
+                    member = 4;
+                    global::System.DateTimeOffset v4 = (_f4 ? reader.GetFieldValue<global::System.DateTimeOffset>(_o4) : Convert<global::System.DateTimeOffset>(reader, _o4, "CreatedAt"));
+                    member = 5;
+                    string v5 = (_f5 ? reader.GetString(_o5) : Convert<string>(reader, _o5, "Region"));
+                    long v0 = default!;
+                    if (_o0 >= 0)
+                    {
+                        member = 0;
+                        v0 = (_f0 ? reader.GetInt64(_o0) : Convert<long>(reader, _o0, "order_id"));
+                    }
+                    string v1 = default!;
+                    if (_o1 >= 0)
+                    {
+                        member = 1;
+                        v1 = (_f1 ? reader.GetString(_o1) : Convert<string>(reader, _o1, "Customer"));
+                    }
+                    decimal? v2 = default!;
+                    if (_o2 >= 0)
+                    {
+                        member = 2;
+                        v2 = reader.IsDBNull(_o2) ? default(decimal?) : (_f2 ? reader.GetDecimal(_o2) : Convert<decimal>(reader, _o2, "Total"));
+                    }
+                    global::Sample.Orders.OrderStatus v3 = default!;
+                    if (_o3 >= 0)
+                    {
+                        member = 3;
+                        v3 = (_f3 ? (global::Sample.Orders.OrderStatus)reader.GetByte(_o3) : Convert<global::Sample.Orders.OrderStatus>(reader, _o3, "Status"));
+                    }
+
+                    // Reads are done; failures from here on (e.g. the row type's constructor) are not NULL errors.
+                    member = -1;
+                    var result = new global::Sample.Orders.OrderRow()
+                    {
+                        CreatedAt = v4,
+                        Region = v5,
+                    };
+                    if (_o0 >= 0)
+                    {
+                        result.Id = v0;
+                    }
+                    if (_o1 >= 0)
+                    {
+                        result.Customer = v1;
+                    }
+                    if (_o2 >= 0)
+                    {
+                        result.Total = v2;
+                    }
+                    if (_o3 >= 0)
+                    {
+                        result.Status = v3;
+                    }
+                    return result;
+                }
+                catch (global::System.Exception) when (member >= 0 && reader.IsDBNull(OrdinalOf(member)))
+                {
+                    throw NullError(member);
+                }
+            }
+
+            private global::Sample.Orders.OrderRow MapChecked(global::System.Data.Common.DbDataReader reader)
+            {
                 var result = new global::Sample.Orders.OrderRow()
                 {
                     CreatedAt = reader.IsDBNull(_o4) ? OnNull<global::System.DateTimeOffset>("CreatedAt") : (_f4 ? reader.GetFieldValue<global::System.DateTimeOffset>(_o4) : Convert<global::System.DateTimeOffset>(reader, _o4, "CreatedAt")),
@@ -174,6 +244,34 @@ namespace VelQuery.Generated
                     result.Status = reader.IsDBNull(_o3) ? OnNull<global::Sample.Orders.OrderStatus>("Status") : (_f3 ? (global::Sample.Orders.OrderStatus)reader.GetByte(_o3) : Convert<global::Sample.Orders.OrderStatus>(reader, _o3, "Status"));
                 }
                 return result;
+            }
+
+            private int OrdinalOf(int member)
+            {
+                switch (member)
+                {
+                    case 0: return _o0;
+                    case 1: return _o1;
+                    case 2: return _o2;
+                    case 3: return _o3;
+                    case 4: return _o4;
+                    case 5: return _o5;
+                    default: return -1;
+                }
+            }
+
+            private global::VelQuery.VelQueryMappingException NullError(int member)
+            {
+                switch (member)
+                {
+                    case 0: return global::VelQuery.VelQueryMappingException.NullToNonNullable(_queryId, "order_id", typeof(long));
+                    case 1: return global::VelQuery.VelQueryMappingException.NullToNonNullable(_queryId, "Customer", typeof(string));
+                    case 2: return global::VelQuery.VelQueryMappingException.NullToNonNullable(_queryId, "Total", typeof(decimal));
+                    case 3: return global::VelQuery.VelQueryMappingException.NullToNonNullable(_queryId, "Status", typeof(global::Sample.Orders.OrderStatus));
+                    case 4: return global::VelQuery.VelQueryMappingException.NullToNonNullable(_queryId, "CreatedAt", typeof(global::System.DateTimeOffset));
+                    case 5: return global::VelQuery.VelQueryMappingException.NullToNonNullable(_queryId, "Region", typeof(string));
+                    default: throw new global::System.ArgumentOutOfRangeException(nameof(member));
+                }
             }
 
             private global::Sample.Orders.OrderRow MapUnordered(global::System.Data.Common.DbDataReader reader)

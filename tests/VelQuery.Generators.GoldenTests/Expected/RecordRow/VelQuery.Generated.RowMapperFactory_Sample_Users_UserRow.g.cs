@@ -112,11 +112,64 @@ namespace VelQuery.Generated
                     return MapUnordered(reader);
                 }
 
+                if (!_strictNulls)
+                {
+                    return MapChecked(reader);
+                }
+
+                var member = -1;
+                try
+                {
+                    member = 0;
+                    long v0 = (_f0 ? reader.GetInt64(_o0) : Convert<long>(reader, _o0, "Id"));
+                    member = 1;
+                    string v1 = (_f1 ? reader.GetString(_o1) : Convert<string>(reader, _o1, "Name"));
+                    member = 2;
+                    string? v2 = reader.IsDBNull(_o2) ? default(string?) : (_f2 ? reader.GetString(_o2) : Convert<string>(reader, _o2, "Email"));
+
+                    // Reads are done; failures from here on (e.g. the row type's constructor) are not NULL errors.
+                    member = -1;
+                    var result = new global::Sample.Users.UserRow(
+                        v0,
+                        v1,
+                        v2);
+                    return result;
+                }
+                catch (global::System.Exception) when (member >= 0 && reader.IsDBNull(OrdinalOf(member)))
+                {
+                    throw NullError(member);
+                }
+            }
+
+            private global::Sample.Users.UserRow MapChecked(global::System.Data.Common.DbDataReader reader)
+            {
                 var result = new global::Sample.Users.UserRow(
                     reader.IsDBNull(_o0) ? OnNull<long>("Id") : (_f0 ? reader.GetInt64(_o0) : Convert<long>(reader, _o0, "Id")),
                     reader.IsDBNull(_o1) ? OnNull<string>("Name") : (_f1 ? reader.GetString(_o1) : Convert<string>(reader, _o1, "Name")),
                     reader.IsDBNull(_o2) ? default(string?) : (_f2 ? reader.GetString(_o2) : Convert<string>(reader, _o2, "Email")));
                 return result;
+            }
+
+            private int OrdinalOf(int member)
+            {
+                switch (member)
+                {
+                    case 0: return _o0;
+                    case 1: return _o1;
+                    case 2: return _o2;
+                    default: return -1;
+                }
+            }
+
+            private global::VelQuery.VelQueryMappingException NullError(int member)
+            {
+                switch (member)
+                {
+                    case 0: return global::VelQuery.VelQueryMappingException.NullToNonNullable(_queryId, "Id", typeof(long));
+                    case 1: return global::VelQuery.VelQueryMappingException.NullToNonNullable(_queryId, "Name", typeof(string));
+                    case 2: return global::VelQuery.VelQueryMappingException.NullToNonNullable(_queryId, "Email", typeof(string));
+                    default: throw new global::System.ArgumentOutOfRangeException(nameof(member));
+                }
             }
 
             private global::Sample.Users.UserRow MapUnordered(global::System.Data.Common.DbDataReader reader)

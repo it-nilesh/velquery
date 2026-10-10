@@ -52,7 +52,7 @@ public abstract class BenchmarkBase
     protected static string Describe(BenchRow? row)
         => row is null ? "<null>" : $"{row.Id}|{row.Name}|{row.Email}|{row.Amount}|{row.CreatedUtc:O}|{row.IsActive}";
 
-    private static async Task<TypedParamValues> ReadTypedValuesAsync(string connectionString)
+    internal static async Task<TypedParamValues> ReadTypedValuesAsync(string connectionString)
     {
         var row = await RawAdoNet.OneRowAsync(connectionString, BenchSql.OneRowId)
             ?? throw new InvalidOperationException("Seed row missing; the database was not seeded.");
