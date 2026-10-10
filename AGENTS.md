@@ -6,8 +6,9 @@ Guidance for AI coding agents and contributors working in this repository.
 
 VelQuery is a query-first .NET 10 SQL execution engine: typed execution, source-generated binders/mappers,
 compile-time SQL diagnostics, and (later, out-of-band) AI query intelligence. It is **not** an ORM.
-The requirements baseline is [docs/prd/VelQuery_PRD_v1.0.md](docs/prd/VelQuery_PRD_v1.0.md); requirement IDs such
-as `VQ-FR-013` refer to it. Decisions are recorded in [docs/architecture/adr/](docs/architecture/adr/).
+The requirements baseline is [docs/prd/VelQuery_PRD_v1.0.md](docs/prd/VelQuery_PRD_v1.0.md), amended by
+[v1.1 (multi-database support)](docs/prd/VelQuery_PRD_v1.1_Amendment.md); requirement IDs such as `VQ-FR-013` and
+`VQ-DB-002` refer to them. The database roadmap and support tiers are in [docs/database-support.md](docs/database-support.md). Decisions are recorded in [docs/architecture/adr/](docs/architecture/adr/).
 
 ## Layout
 
@@ -19,7 +20,7 @@ as `VQ-FR-013` refer to it. Decisions are recorded in [docs/architecture/adr/](d
 | `src/VelQuery.PostgreSQL` | `PostgreSqlProvider` (Npgsql), `VelQueryPostgreSql.CreateDataSource`, DI registration, `Bulk/` (binary COPY) |
 | `src/VelQuery.Generators` | Roslyn incremental generator for `[VelQuerySql]` contracts (netstandard2.0) |
 | `src/VelQuery.Analyzers` | VQ1xxx diagnostics (netstandard2.0) |
-| `tests/` | Unit, golden, analyzer and SQL Server integration tests (xUnit v3) |
+| `tests/` | Unit, golden, analyzer, SQL Server and PostgreSQL integration tests (xUnit v3) |
 | `benchmarks/` | BenchmarkDotNet suites comparing raw ADO.NET, Dapper, Dapper.AOT and VelQuery |
 
 ## Build and test

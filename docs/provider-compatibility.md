@@ -5,7 +5,8 @@ Tracks what VelQuery supports per database provider, what has been verified, and
 exists but has no passing test on a listed environment is "implemented, not yet verified". Nothing here is a support
 claim for an untested combination (PRD §10.1 "important qualification").
 
-Last updated: 2026-10-10 (VelQuery 0.1.0-alpha, pre-Gate B).
+Last updated: 2026-10-11 (VelQuery 0.1.0-alpha). For the full list of planned databases and support tiers see
+[database-support.md](database-support.md).
 
 ## Legend
 

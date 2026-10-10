@@ -2,6 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-10-10
+- **Amended by:** [ADR-0015](ADR-0015-multi-database-support-strategy.md) (2026-10-11): database coverage now extends beyond SQL in phases; the isolation rules below still apply
 - **Deciders:** Principal Architect, Product Owner, Engineering Lead
 - **PRD references:** §0, §2.3, §3 (architectural rule), §4.1, §15.3 (VQ-AI-011), §19.1, VQ-FR-030, VQ-FR-035
 - **Code:** `src/VelQuery.Abstractions/*.csproj`, `src/VelQuery.Core/*.csproj`, `src/VelQuery.SqlServer/*.csproj`
