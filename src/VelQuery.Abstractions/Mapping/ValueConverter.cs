@@ -5,7 +5,9 @@ namespace VelQuery.Mapping;
 /// <summary>
 /// Strict, culture-invariant conversion of provider values to CLR types (VQ-FR-016, VQ-FR-029). Only lossless
 /// conversions are performed: identical types, integral widening (range-checked narrowing), integral to
-/// <see cref="decimal"/>/<see cref="double"/>, <see cref="float"/> to <see cref="double"/>, and integral to enum.
+/// <see cref="decimal"/>/<see cref="double"/>, <see cref="float"/> to <see cref="double"/>, integral to enum,
+/// midnight <see cref="DateTime"/> to <see cref="DateOnly"/>, sub-day <see cref="TimeSpan"/> to
+/// <see cref="TimeOnly"/>, and one-character strings to <see cref="char"/>.
 /// Strings are never parsed and <see cref="System.Convert.ChangeType(object, Type)"/> is never used.
 /// </summary>
 public static class ValueConverter
@@ -98,6 +100,20 @@ public static class ValueConverter
             else if (value is float f && target == typeof(double))
             {
                 return (double)f;
+            }
+            else if (value is DateTime dateTime && target == typeof(DateOnly) && dateTime.TimeOfDay == TimeSpan.Zero)
+            {
+                // Drivers surface SQL `date` as a midnight DateTime.
+                return DateOnly.FromDateTime(dateTime);
+            }
+            else if (value is TimeSpan timeSpan && target == typeof(TimeOnly) && timeSpan >= TimeSpan.Zero && timeSpan < TimeSpan.FromDays(1))
+            {
+                // Drivers surface SQL `time` as a TimeSpan within one day.
+                return TimeOnly.FromTimeSpan(timeSpan);
+            }
+            else if (value is string { Length: 1 } single && target == typeof(char))
+            {
+                return single[0];
             }
         }
         catch (OverflowException ex)
