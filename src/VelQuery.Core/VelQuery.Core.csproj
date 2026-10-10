@@ -11,4 +11,16 @@
   <ItemGroup>
     <InternalsVisibleTo Include="VelQuery.Core.UnitTests" />
   </ItemGroup>
+  <!--
+    The generator and analyzers ship inside this package (analyzers/dotnet/cs) so package consumers get them
+    automatically. They are not run on Core itself; the project references only order the build. Projects that
+    reference Core via ProjectReference add VelQuery.Generators/VelQuery.Analyzers with
+    OutputItemType="Analyzer" ReferenceOutputAssembly="false".
+  -->
+  <ItemGroup>
+    <ProjectReference Include="../VelQuery.Generators/VelQuery.Generators.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../VelQuery.Analyzers/VelQuery.Analyzers.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <None Include="../VelQuery.Generators/bin/$(Configuration)/netstandard2.0/VelQuery.Generators.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="../VelQuery.Analyzers/bin/$(Configuration)/netstandard2.0/VelQuery.Analyzers.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+  </ItemGroup>
 </Project>

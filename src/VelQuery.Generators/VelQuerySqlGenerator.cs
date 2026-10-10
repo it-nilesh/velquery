@@ -1,0 +1,126 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Linq;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
+using VelQuery.Generators.Analysis;
+using VelQuery.Generators.Emit;
+using VelQuery.Generators.Infrastructure;
+using VelQuery.Generators.Model;
+
+namespace VelQuery.Generators;
+
+/// <summary>
+/// Incremental generator for <c>[VelQuerySql]</c> query contracts (VQ-FR-031, VQ-FR-032, PRD §11.1). For each
+/// contract it emits a static <c>QueryDescriptor</c>, a parameter binder with compile-time <c>ParameterSpec</c>s and
+/// the partial method implementation; for each distinct row type it emits an <c>IRowMapperFactory&lt;T&gt;</c> and
+/// registers it with <c>RowMappers&lt;T&gt;</c> from a module initializer so runtime SQL for that type is
+/// reflection-free too. Output contains no timestamps and is ordered deterministically.
+/// </summary>
+[Generator(LanguageNames.CSharp)]
+public sealed class VelQuerySqlGenerator : IIncrementalGenerator
+{
+    /// <summary>Version stamped into <c>[GeneratedCode]</c>; changes only with the generator's output format.</summary>
+    public const string Version = "0.1.0";
+
+    /// <summary>Tracking names of the pipeline steps, for incrementality tests.</summary>
+    public static class TrackingNames
+    {
+        /// <summary>Per-contract parse results.</summary>
+        public const string Contracts = "VelQuery.Contracts";
+
+        /// <summary>Per-contract source models.</summary>
+        public const string Models = "VelQuery.Models";
+
+        /// <summary>Collected, de-duplicated row mapping plans.</summary>
+        public const string RowPlans = "VelQuery.RowPlans";
+    }
+
+    private const string AttributeName = "VelQuery.VelQuerySqlAttribute";
+
+    /// <inheritdoc />
+    public void Initialize(IncrementalGeneratorInitializationContext context)
+    {
+        var contracts = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                AttributeName,
+                static (node, _) => node is ClassDeclarationSyntax,
+                ContractParser.Parse)
+            .WithTrackingName(TrackingNames.Contracts);
+
+        // Diagnostics carry locations, which shift on unrelated edits above the contract; keep them out of the
+        // source pipeline so such edits do not regenerate code.
+        context.RegisterSourceOutput(contracts.Select(static (c, _) => c.Diagnostics), static (spc, diagnostics) =>
+        {
+            foreach (var diagnostic in diagnostics)
+            {
+                spc.ReportDiagnostic(diagnostic.ToDiagnostic());
+            }
+        });
+
+        var models = contracts
+            .Select(static (c, _) => c.Model)
+            .Where(static m => m is not null)
+            .WithTrackingName(TrackingNames.Models);
+        context.RegisterSourceOutput(models, static (spc, model) =>
+            spc.AddSource(model!.HintName, SourceText.From(ContractEmitter.Emit(model), System.Text.Encoding.UTF8)));
+
+        var rowPlans = contracts
+            .Select(static (c, _) => c.Model is null ? null : c.RowPlan)
+            .Where(static p => p is not null)
+            .Collect()
+            .Select(static (plans, _) => Distinct(plans!))
+            .WithTrackingName(TrackingNames.RowPlans);
+        context.RegisterSourceOutput(rowPlans, static (spc, plans) =>
+        {
+            if (plans.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var plan in plans)
+            {
+                spc.AddSource(plan.HintName, SourceText.From(RowMapperEmitter.Emit(plan), System.Text.Encoding.UTF8));
+            }
+
+            spc.AddSource("VelQuery.Generated.RowMapperRegistrations.g.cs", SourceText.From(EmitRegistrations(plans), System.Text.Encoding.UTF8));
+        });
+    }
+
+    private static EquatableArray<RowPlan> Distinct(ImmutableArray<RowPlan?> plans)
+    {
+        // Ordinal ordering keeps output stable regardless of file or declaration order (VQ-FR-032).
+        var unique = new SortedDictionary<string, RowPlan>(StringComparer.Ordinal);
+        foreach (var plan in plans)
+        {
+            if (plan is not null && !unique.ContainsKey(plan.Type))
+            {
+                unique.Add(plan.Type, plan);
+            }
+        }
+
+        return unique.Values.ToEquatableArray();
+    }
+
+    private static string EmitRegistrations(EquatableArray<RowPlan> plans)
+    {
+        var writer = CodeWriter.WithHeader();
+        writer.Open("namespace VelQuery.Generated");
+        writer.Line("/// <summary>Registers generated row mappers so runtime SQL for these types is reflection-free.</summary>");
+        writer.Line(ContractEmitter.GeneratedCodeAttribute);
+        writer.Open("internal static class RowMapperRegistrations");
+        writer.Line("[global::System.Runtime.CompilerServices.ModuleInitializer]");
+        writer.Open("internal static void Register()");
+        foreach (var plan in plans)
+        {
+            writer.Line($"global::VelQuery.Mapping.RowMappers<{plan.Type}>.Register({plan.FactoryName}.Instance);");
+        }
+
+        writer.Close();
+        writer.Close();
+        writer.Close();
+        return writer.ToString();
+    }
+}
