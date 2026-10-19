@@ -2,6 +2,7 @@ using System;
 using System.Data.Common;
 using System.Threading;
 using System.Threading.Tasks;
+using VelQuery.Engine;
 
 namespace VelQuery;
 
@@ -9,7 +10,7 @@ namespace VelQuery;
 /// A session-scoped transaction started by <see cref="VelQuerySession.BeginTransactionAsync"/>. Commit is explicit;
 /// disposing without a successful commit rolls back and releases the pinned connection (VQ-FR-012).
 /// </summary>
-public sealed class VelQueryTransaction : IAsyncDisposable
+public sealed class VelQueryTransaction : IVelQueryTransactionScope
 {
     private readonly VelQuerySession _session;
     private readonly DbTransaction _transaction;

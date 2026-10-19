@@ -1,11 +1,12 @@
 using System;
 using System.Data.Common;
+using VelQuery.Engine;
 using VelQuery.Parameters;
 
 namespace VelQuery.Providers;
 
-/// <summary>Dialect- and driver-specific behavior used by the VelQuery runtime and generated code.</summary>
-public interface IVelQueryProvider
+/// <summary>Dialect- and driver-specific behavior used by the ADO.NET engine and generated code.</summary>
+public interface IVelQueryProvider : IVelQueryErrorClassifier
 {
     /// <summary>Stable dialect identifier, for example <c>sqlserver</c> or <c>postgresql</c>.</summary>
     string DialectId { get; }
@@ -26,8 +27,8 @@ public interface IVelQueryProvider
     /// <summary>Quotes an identifier that has already been validated against an allowlist (VQ-FR-042).</summary>
     string QuoteIdentifier(ReadOnlySpan<char> validatedIdentifier);
 
-    /// <summary>Classifies a driver exception.</summary>
-    ProviderErrorKind Classify(Exception exception);
+    /// <summary>ADO.NET drivers report failures as <see cref="DbException"/>.</summary>
+    bool IVelQueryErrorClassifier.IsProviderException(Exception exception) => exception is DbException;
 }
 
 /// <summary>Provider error classification.</summary>

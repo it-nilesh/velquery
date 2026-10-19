@@ -14,7 +14,7 @@ The requirements baseline is [docs/prd/VelQuery_PRD_v1.0.md](docs/prd/VelQuery_P
 
 | Path | Purpose |
 |---|---|
-| `src/VelQuery.Abstractions` | Contracts shared by runtime, providers and generated code: `QueryDescriptor<TArgs,TRow>`, `IRowMapperFactory<T>`, `RowMappers<T>` registry, `ParameterSpec`/`ParameterWriter`, `IVelQueryProvider`, error types, `ValueConverter` |
+| `src/VelQuery.Abstractions` | Contracts shared by runtime, providers and generated code: `QueryDescriptor<TArgs,TRow>`, `IRowMapperFactory<T>`, `RowMappers<T>` registry, `ParameterSpec`/`ParameterWriter`, `IVelQueryProvider`, error types, `ValueConverter`; `Engine/` holds the engine-neutral kernel (error contract, cleanup, session guard, transaction scope, stream base) that every engine — ADO.NET or not — must use (ADR-0016) |
 | `src/VelQuery.Core` | `VelQueryDataSource`, `VelQuerySession` (execution, ownership, transactions, streaming, multi-result), `QueryParameters`, opt-in reflection fallback mapper |
 | `src/VelQuery.SqlServer` | `SqlServerProvider` (Microsoft.Data.SqlClient), `VelQuerySqlServer.CreateDataSource`, DI registration, `Bulk/` (SqlBulkCopy) |
 | `src/VelQuery.PostgreSQL` | `PostgreSqlProvider` (Npgsql), `VelQueryPostgreSql.CreateDataSource`, DI registration, `Bulk/` (binary COPY) |

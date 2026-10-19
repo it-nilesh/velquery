@@ -4,6 +4,7 @@ using System.Data.Common;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
+using VelQuery.Engine;
 using VelQuery.Execution;
 using VelQuery.Mapping;
 using VelQuery.Providers;
@@ -31,7 +32,7 @@ public sealed partial class VelQuerySession : IVelQuerySession
     private bool _pinnedConnectionOwned;
     private DbTransaction? _transaction;
     private VelQueryTransaction? _transactionScope;
-    private int _busy;
+    private readonly SessionGuard _guard = new();
     private bool _disposed;
 
     internal VelQuerySession(VelQueryDataSource dataSource, IVelQueryConnectionFactory connectionFactory)
@@ -212,16 +213,9 @@ public sealed partial class VelQuerySession : IVelQuerySession
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
 
-    private void EnterPinned()
-    {
-        if (Interlocked.CompareExchange(ref _busy, 1, 0) != 0)
-        {
-            throw new VelQueryValidationException(null,
-                "the session is already executing an operation on its connection. Sessions are not thread-safe; complete or dispose the active operation (including streams and multi-result readers) first.");
-        }
-    }
+    private void EnterPinned() => _guard.Enter();
 
-    private void ExitPinned() => Volatile.Write(ref _busy, 0);
+    private void ExitPinned() => _guard.Exit();
 
     internal async ValueTask<ConnectionLease> AcquireAsync(CancellationToken cancellationToken)
     {
@@ -298,39 +292,9 @@ public sealed partial class VelQuerySession : IVelQuerySession
             "register a mapper with RowMappers<T>.Register, or set VelQueryOptions.AllowDynamicFallback = true.");
     }
 
-    /// <summary>
-    /// Translates a failure into the VelQuery error contract and rethrows, preserving the original stack when the
-    /// exception is passed through (VQ-FR-026).
-    /// </summary>
+    /// <summary>Applies the engine-neutral error contract (<see cref="VelQueryErrors"/>, VQ-FR-026).</summary>
     internal Exception Translate(Exception exception, string queryId, CancellationToken cancellationToken)
-    {
-        switch (exception)
-        {
-            case VelQueryException:
-                return Rethrow(exception);
-            case OperationCanceledException when cancellationToken.IsCancellationRequested:
-                return Rethrow(exception);
-        }
-
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return new OperationCanceledException($"Query '{queryId}' was cancelled.", exception, cancellationToken);
-        }
-
-        return _provider.Classify(exception) switch
-        {
-            ProviderErrorKind.Timeout => new VelQueryTimeoutException(queryId, exception),
-            ProviderErrorKind.Cancelled => new OperationCanceledException($"Query '{queryId}' was cancelled by the provider.", exception),
-            _ when exception is DbException => new VelQueryProviderException(queryId, exception),
-            _ => Rethrow(exception),
-        };
-    }
-
-    private static Exception Rethrow(Exception exception)
-    {
-        ExceptionDispatchInfo.Capture(exception).Throw();
-        return exception;
-    }
+        => VelQueryErrors.Translate(exception, queryId, _provider, cancellationToken);
 
     /// <summary>
     /// Releases reader, command and connection in order. When <paramref name="faulted"/> is true, cleanup failures are
@@ -354,27 +318,13 @@ public sealed partial class VelQuerySession : IVelQuerySession
                 }
             }
 
-            try
-            {
-                await reader.DisposeAsync().ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                cleanupFailure ??= ex;
-            }
+            var readerFailure = await AsyncDisposal.TryDisposeAsync(reader).ConfigureAwait(false);
+            cleanupFailure ??= readerFailure;
         }
 
-        if (command is not null)
-        {
-            try
-            {
-                await command.DisposeAsync().ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                cleanupFailure ??= ex;
-            }
-        }
+        // Dispose unconditionally first: `x ??= await ...` would skip the dispose once an earlier one had failed.
+        var commandFailure = await AsyncDisposal.TryDisposeAsync(command).ConfigureAwait(false);
+        cleanupFailure ??= commandFailure;
 
         try
         {
