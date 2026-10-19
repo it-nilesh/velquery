@@ -4,6 +4,7 @@
     <Project Path="src/VelQuery.Core/VelQuery.Core.csproj" />
     <Project Path="src/VelQuery.SqlServer/VelQuery.SqlServer.csproj" />
     <Project Path="src/VelQuery.PostgreSQL/VelQuery.PostgreSQL.csproj" />
+    <Project Path="src/VelQuery.Sqlite/VelQuery.Sqlite.csproj" />
     <Project Path="src/VelQuery.Generators/VelQuery.Generators.csproj" />
     <Project Path="src/VelQuery.Analyzers/VelQuery.Analyzers.csproj" />
   </Folder>
@@ -14,6 +15,7 @@
     <Project Path="tests/VelQuery.Analyzers.Tests/VelQuery.Analyzers.Tests.csproj" />
     <Project Path="tests/VelQuery.SqlServer.IntegrationTests/VelQuery.SqlServer.IntegrationTests.csproj" />
     <Project Path="tests/VelQuery.PostgreSQL.IntegrationTests/VelQuery.PostgreSQL.IntegrationTests.csproj" />
+    <Project Path="tests/VelQuery.Sqlite.IntegrationTests/VelQuery.Sqlite.IntegrationTests.csproj" />
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/QuickStart/QuickStart.Api/QuickStart.Api.csproj" />
