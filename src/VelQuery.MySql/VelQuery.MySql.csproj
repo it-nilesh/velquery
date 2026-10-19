@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>VelQuery.MySql</RootNamespace>
+    <IsAotCompatible>true</IsAotCompatible>
+    <Description>MySQL and MariaDB provider for VelQuery, built on MySqlConnector.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../VelQuery.Core/VelQuery.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="MySqlConnector" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
+</Project>

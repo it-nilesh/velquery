@@ -100,6 +100,51 @@ Status is **preview** until the full parity matrix passes on CI (PRD D-04).
 | Arrays / `ANY(@ids)` parameters | Not yet verified | Npgsql supports them; no VelQuery-specific API or tests yet |
 | Native AOT (any RID / auth) | Not yet verified | Npgsql supports NativeAOT via `NpgsqlSlimDataSourceBuilder`; `CreateDataSource(NpgsqlDataSource)` accepts one |
 
+## SQLite (phase 1) — `VelQuery.Sqlite`, Microsoft.Data.Sqlite 10.0.13 (SQLite 3.53.3)
+
+Evidence: `tests/VelQuery.Sqlite.IntegrationTests` (70 tests, temp-file / shared-cache databases, no Docker) on .NET 10,
+macOS arm64. Status **preview** until CI.
+
+| Capability | Status | Notes |
+|---|---|---|
+| Buffered query, First/Single/OrDefault, scalar, execute | Verified | Integers are Int64; narrowing is overflow-checked. DDL `ExecuteAsync` returns the driver's stale `sqlite3_changes()` |
+| Generated `[VelQuerySql]` contracts (shuffled SELECT order, strict NULL, scalar, non-query) | Verified | Same contract shapes as SQL Server/PostgreSQL |
+| Types via NativeConversions: integers, bool, decimal (TEXT), string, Guid (TEXT/BLOB), DateTime, DateTimeOffset, DateOnly, TimeOnly, TimeSpan, byte[], double/float, char, enums (incl. nullable scalars) | Verified | DateTime.Kind is not stored; driver coercions apply (REAL→int truncates, non-numeric TEXT→0/false); decimals in NUMERIC columns become REAL — use TEXT, and prefer STRICT tables. The opt-in reflection fallback does not use native conversions |
+| Parameters, injection resistance | Verified | Parameter names are case-sensitive; an unbound placeholder throws the driver's `InvalidOperationException` |
+| Multiple result sets; error in a later statement | Verified | |
+| Stored procedures / output parameters | Unsupported | SQLite has none |
+| Lock timeout (SQLITE_BUSY/LOCKED) → `VelQueryTimeoutException` | Verified | `CommandTimeout` bounds lock waits only, not running statements |
+| Caller cancellation | Verified (with limits) | Observed before execution and between rows; a single long step or lock wait is not interrupted (needs a provider cancellation hook) |
+| Streaming 100k rows; early exit; connection hygiene | Verified | Every connection disposed (counted); the pool is unbounded and keyed by connection string |
+| Session transactions; caller-owned connection/transaction | Verified | Plain `:memory:` is per connection — use a named shared-cache database or a pinned session |
+| Bulk insert (`BulkInsertAsync`, one transaction + prepared INSERT) | Verified | All-or-nothing (savepoint inside a session transaction). 1M rows ≈ 0.71 s, same as raw Microsoft.Data.Sqlite; multi-row VALUES measured slower |
+| Generator SQL scanning of SQLite syntax | Partial | `@name`, `"…"`, `[…]`, comments work; `?`, `:name`, `$name` and backticks are not understood; placeholders are matched case-insensitively but SQLite binds case-sensitively |
+| Generic ADO.NET tier over `SqliteFactory` | Verified | No conversions unless `NativeConversions` is declared; BUSY/interrupt are plain provider errors |
+| Native AOT | Not yet verified | Library builds with `IsAotCompatible` and no warnings |
+
+## MySQL / MariaDB (phase 1) — `VelQuery.MySql`, MySqlConnector 2.6.2
+
+Evidence: `tests/VelQuery.MySql.IntegrationTests` (58 tests) on `mysql:8.4` (8.4.11) and `mariadb:11` (11.8.9) via
+Testcontainers, macOS arm64. Status **preview** until CI.
+
+| Capability | Status | Notes |
+|---|---|---|
+| Buffered query, First/Single/OrDefault, scalar, execute | Verified | `count(*)` is BIGINT; narrowing range-checked |
+| Affected rows | Verified | Default = rows found (matched), like SQL Server/PostgreSQL; `UseAffectedRows=true` = rows changed |
+| Generated `[VelQuerySql]` contracts (SequentialAccess, shuffled order, strict NULL, backtick identifiers) | Verified | |
+| Types: tinyint…bigint unsigned, decimal, tinyint(1)→bool, utf8mb4 text, char(36)→Guid, binary, datetime(6), timestamp, date→DateOnly, time→TimeOnly/TimeSpan, json, longblob, float/double | Verified | `BIT(n)`→`ulong` (not bool); DATETIME→`DateTimeOffset` only with `DateTimeKind=Utc`; BINARY(16)→Guid only with an explicit `GuidFormat`; DECIMAL beyond .NET range → driver `FormatException` |
+| Parameters, injection resistance | Verified | Includes backslash/backtick payloads; under `NO_BACKSLASH_ESCAPES` set `NoBackslashEscapes=true` (otherwise backslashes are doubled — data changes, no injection) |
+| Multiple result sets; error in a later statement | Verified | |
+| Stored procedures with IN / OUT / INOUT | Verified | |
+| User variables | Verified | Require `AllowUserVariables=true` |
+| Command timeout / server statement limit / caller cancellation | Verified | Timeout: `CommandTimeoutExpired`, 3024 (MySQL), 1969 (MariaDB). An interrupted `SLEEP()` returns 1 on MySQL |
+| Lock wait timeout (1205), deadlock (1213), KILL QUERY (1317) | Verified | `VelQueryProviderException` with the error number preserved (concurrency conflicts, not timeouts) |
+| Streaming 100k rows; early exit; pool hygiene (1–2 connections) | Verified | |
+| Session transactions; caller-owned connection/transaction | Verified | |
+| Bulk insert (`BulkInsertAsync`, LOAD DATA LOCAL) | Verified | All-or-nothing; skipped rows/warnings fail with `MySqlBulkInsertException` (counts and codes only) and roll back the load (savepoint inside a session transaction); local infile disabled → `VelQueryUnsupportedCapabilityException`. 1M rows ≈ 1.29 s vs 1.32 s raw `MySqlBulkCopy` |
+| Generator SQL scanning of MySQL syntax | Partial | Backticks and `"…"` OK; backslash-escaped quotes, `#` comments and `@user_vars` cause VQ1019/VQ1001 false positives |
+| Native AOT | Not yet verified | |
+
 ## How to update this file
 
 1. Add or update an environment row with exact server build, driver version, runtime and OS/RID.

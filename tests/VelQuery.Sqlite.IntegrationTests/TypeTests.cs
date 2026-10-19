@@ -124,9 +124,9 @@ public sealed class TypeTests(SqliteFixture fixture) : IntegrationTest(fixture)
         Assert.Equal(LiteColor.Green, await session.ExecuteScalarAsync<LiteColor>("SELECT color FROM types WHERE id = 1", cancellationToken: Ct));
         Assert.Equal([new DateOnly(2026, 10, 11)], await session.QueryAsync<DateOnly>("SELECT d FROM types WHERE id = 1", null, Ct));
 
-        // Known gap: the scalar mapper asks the driver for the nullable type itself, and Microsoft.Data.Sqlite cannot
-        // produce a Nullable<enum> (it unboxes an Int32). Generated row mappers are unaffected (they read the enum type).
-        await Assert.ThrowsAsync<InvalidCastException>(() => session.ExecuteScalarAsync<LiteColor?>("SELECT color FROM types WHERE id = 1", cancellationToken: Ct));
+        // Nullable<enum> scalars use the lossless integral-to-enum rule (drivers cannot produce Nullable<enum> themselves).
+        Assert.Equal(LiteColor.Green, await session.ExecuteScalarAsync<LiteColor?>("SELECT color FROM types WHERE id = 1", cancellationToken: Ct));
+        Assert.Null(await session.ExecuteScalarAsync<LiteColor?>("SELECT color FROM types WHERE id = 2", cancellationToken: Ct));
     }
 
     [Fact]

@@ -49,9 +49,13 @@ public sealed class ScalarRowMapperFactory<T> : IRowMapperFactory<T>
 
     private sealed class ConvertingMapper(string column, MappingContext context) : IRowMapper<T>
     {
+        // Drivers cannot produce Nullable<enum> from GetFieldValue (they unbox the stored integer); the lossless
+        // integral-to-enum rule in ValueConverter handles it instead.
+        private static readonly bool s_nullableEnum = Nullable.GetUnderlyingType(typeof(T)) is { IsEnum: true };
+
         public T Map(DbDataReader reader)
         {
-            if (context.NativeConversions && !reader.IsDBNull(0))
+            if (context.NativeConversions && !s_nullableEnum && !reader.IsDBNull(0))
             {
                 return reader.GetFieldValue<T>(0);
             }

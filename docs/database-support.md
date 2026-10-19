@@ -4,7 +4,7 @@ The single list of databases VelQuery supports or plans to support, by database 
 [PRD amendment v1.1](prd/VelQuery_PRD_v1.1_Amendment.md) and [ADR-0015](architecture/adr/ADR-0015-multi-database-support-strategy.md).
 Per-feature verification details for implemented providers live in [provider-compatibility.md](provider-compatibility.md).
 
-Last updated: 2026-10-11.
+Last updated: 2026-10-20.
 
 ## Status tiers
 
@@ -25,8 +25,8 @@ No database is **Verified** yet: CI does not exist yet (phase 1 work item).
 |---|---|---|---|---|---|
 | Relational | **SQL Server** 2019/2022, Azure SQL | **Preview** | `VelQuery.SqlServer` | Microsoft.Data.SqlClient | 125 integration tests pass locally (on Azure SQL Edge, ARM64). Bulk: SqlBulkCopy. Needs CI on SQL Server 2022 x64 and Entra ID auth |
 | Relational | **PostgreSQL** 17 | **Preview** | `VelQuery.PostgreSQL` | Npgsql | 31 integration tests pass locally on PostgreSQL 17. Bulk: binary COPY |
-| Relational | MySQL / MariaDB | Planned (phase 1) | `VelQuery.MySql` | MySqlConnector | Bulk: `MySqlBulkCopy` / LOAD DATA. Needs dialect-aware scanner (backticks) |
-| Relational / embedded | SQLite | Planned (phase 1) | `VelQuery.Sqlite` | Microsoft.Data.Sqlite | Also enables Docker-free tests |
+| Relational | **MySQL** 8.4 / **MariaDB** 11.8 | **Preview** | `VelQuery.MySql` | MySqlConnector 2.6.2 | 58 integration tests pass locally on `mysql:8.4` and `mariadb:11` (ARM64). Bulk: `MySqlBulkCopy` (LOAD DATA LOCAL; needs `AllowLoadLocalInfile` + `local_infile=ON`), all-or-nothing with skipped-row/warning detection. Scanner not MySQL-aware (backslash escapes, `#` comments, user variables) |
+| Relational / embedded | **SQLite** 3.53 | **Preview** | `VelQuery.Sqlite` | Microsoft.Data.Sqlite 10.0.13 | 70 integration tests pass locally (no Docker). Bulk: one transaction + prepared INSERT (~1.4M rows/s). NativeConversions for TEXT dates/decimals/Guids. Driver cannot interrupt a running statement (cancellation is between rows) |
 | Relational | Oracle | Planned (phase 1, later) | `VelQuery.Oracle` | Oracle.ManagedDataAccess.Core | `:name` placeholders; array binding for bulk |
 | Relational | IBM DB2 | By demand | — | IBM's .NET provider | |
 | Distributed SQL | CockroachDB, YugabyteDB | Planned (phase 1) | `VelQuery.PostgreSQL` | Npgsql | PostgreSQL-compatible with differences (transactions, retries); needs own test runs |
@@ -43,7 +43,7 @@ No database is **Verified** yet: CI does not exist yet (phase 1 work item).
 | Vector (SQL) | pgvector | Planned (phase 1) | `VelQuery.PostgreSQL` | Npgsql + pgvector plugin | Needs vector type mapping |
 | Vector (SQL) | SQL Server vector type | Planned (phase 1) | `VelQuery.SqlServer` | Microsoft.Data.SqlClient | |
 | Spatial | PostGIS | By demand | `VelQuery.PostgreSQL` | Npgsql + NetTopologySuite | |
-| Any other ADO.NET database | — | Generic (planned) | `VelQuery.Core` generic provider | Vendor ADO.NET driver | Reduced guarantees (VQ-DB-003) |
+| Any other ADO.NET database | — | **Generic** | `VelQuery.Core` (`VelQueryAdoNet.CreateDataSource`) | Vendor ADO.NET driver | Reduced guarantees (VQ-DB-003); exercised end to end with Microsoft.Data.Sqlite (8 tests) |
 
 ## Non-relational engines (phases 3–4 — need the phase-2 engine-neutral core)
 

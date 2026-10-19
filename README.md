@@ -3,8 +3,8 @@
 Query-first data access for .NET 10: hand-written SQL with compile-time checks, source-generated typed mapping,
 strict runtime semantics and native bulk ingestion. Not an ORM.
 
-> **Status: pre-alpha (preview).** SQL Server and PostgreSQL providers are implemented and pass their integration
-> suites locally; CI, Native AOT verification and NuGet packages do not exist yet. Do not use in production.
+> **Status: pre-alpha (preview).** SQL Server, PostgreSQL, MySQL/MariaDB and SQLite providers are implemented and pass
+> their integration suites locally; CI, Native AOT verification and NuGet packages do not exist yet. Do not use in production.
 
 ## Why VelQuery
 
@@ -51,7 +51,10 @@ A complete minimal API with a repository layer is in [samples/QuickStart](sample
 |---|---|---|
 | SQL Server / Azure SQL | Preview | `VelQuery.SqlServer` |
 | PostgreSQL | Preview | `VelQuery.PostgreSQL` |
-| MySQL/MariaDB, SQLite, Oracle, analytics, distributed SQL | Planned (phase 1) | — |
+| MySQL / MariaDB | Preview | `VelQuery.MySql` |
+| SQLite | Preview | `VelQuery.Sqlite` |
+| Any other ADO.NET database | Generic (reduced guarantees) | `VelQuery.Core` (`VelQueryAdoNet`) |
+| Oracle, analytics, distributed SQL | Planned (phase 1) | — |
 | Document, graph, key-value, wide-column, search, vector | Planned (phases 3–4) | — |
 
 Full list, tiers and phases: [docs/database-support.md](docs/database-support.md). Per-feature evidence:
@@ -80,15 +83,15 @@ EF Core is not benchmarked yet; no claims are made about it.
 
 | Path | Contents |
 |---|---|
-| `src/` | `VelQuery.Abstractions`, `VelQuery.Core`, `VelQuery.SqlServer`, `VelQuery.PostgreSQL`, `VelQuery.Generators`, `VelQuery.Analyzers` |
-| `tests/` | Unit, generator golden/runtime, analyzer, SQL Server and PostgreSQL integration tests |
+| `src/` | `VelQuery.Abstractions` (incl. the engine-neutral `Engine/` kernel), `VelQuery.Core`, `VelQuery.SqlServer`, `VelQuery.PostgreSQL`, `VelQuery.MySql`, `VelQuery.Sqlite`, `VelQuery.Generators`, `VelQuery.Analyzers` |
+| `tests/` | Unit, generator golden/runtime, analyzer, and SQL Server / PostgreSQL / MySQL / SQLite integration tests |
 | `benchmarks/` | BenchmarkDotNet suites plus `--cpu-profile`, `--alloc-profile` and `--bulk-profile` modes |
 | `samples/QuickStart/` | Minimal API + data library over SQL Server |
 | `docs/` | PRD, ADRs, database support, provider compatibility, diagnostics |
 
 ```bash
 dotnet build VelQuery.slnx               # warnings are errors
-dotnet test --solution VelQuery.slnx     # integration tests need Docker (SQL Server and PostgreSQL containers)
+dotnet test --solution VelQuery.slnx     # integration tests need Docker (SQL Server, PostgreSQL, MySQL containers; SQLite needs none)
 ```
 
 ## Documentation
