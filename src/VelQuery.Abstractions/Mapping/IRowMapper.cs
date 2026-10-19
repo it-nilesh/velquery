@@ -35,4 +35,8 @@ public interface IRowMapperFactory<out T>
 /// <summary>Per-invocation information available to row mappers.</summary>
 /// <param name="QueryId">Stable diagnostic query identity.</param>
 /// <param name="StrictNulls">When true, NULL into a non-nullable target throws instead of producing a default.</param>
-public readonly record struct MappingContext(string? QueryId, bool StrictNulls);
+/// <param name="NativeConversions">
+/// When true, values whose provider type differs from the target are read with <c>GetFieldValue&lt;T&gt;</c> (driver
+/// conversion) instead of <c>ValueConverter</c>; see <see cref="Providers.ProviderCapabilities.NativeConversions"/>.
+/// </param>
+public readonly record struct MappingContext(string? QueryId, bool StrictNulls, bool NativeConversions = false);

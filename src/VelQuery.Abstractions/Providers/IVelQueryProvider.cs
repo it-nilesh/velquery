@@ -61,4 +61,11 @@ public enum ProviderCapabilities
 
     /// <summary>Explicit command preparation.</summary>
     Prepare = 1 << 3,
+
+    /// <summary>
+    /// The driver's typed getters (<c>GetFieldValue&lt;T&gt;</c>) perform the documented conversions for its storage
+    /// model (for example SQLite storing dates as TEXT and decimals as REAL). Mappers then ask the driver for the target
+    /// type instead of applying <c>ValueConverter</c> to <c>GetValue()</c>. Strict NULL handling is unchanged.
+    /// </summary>
+    NativeConversions = 1 << 4,
 }

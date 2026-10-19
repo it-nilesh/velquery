@@ -160,6 +160,14 @@ public sealed partial class VelQuerySession
     internal async Task<T> ExecuteScalarCoreAsync<TSpec, T>(TSpec spec, CancellationToken cancellationToken)
         where TSpec : struct, ICommandSpec
     {
+        if (NativeConversions)
+        {
+            // ExecuteScalar returns an untyped object; read the first cell through the driver's typed getter instead.
+            // No rows: default for nullable targets, VelQueryNoRowsException otherwise (same as below).
+            var cardinality = default(T) is null ? RowCardinality.FirstOrDefault : RowCardinality.First;
+            return (await ReadOneAsync(spec, ScalarRowMapperFactory<T>.Instance, cardinality, cancellationToken).ConfigureAwait(false))!;
+        }
+
         ConnectionLease lease = default;
         DbCommand? command = null;
         var faulted = true;

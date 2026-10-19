@@ -46,6 +46,7 @@ internal static class RowMapperEmitter
         writer.Open($"private sealed class Mapper : global::VelQuery.Mapping.IRowMapper<{plan.Type}>");
         writer.Line("private readonly string? _queryId;");
         writer.Line("private readonly bool _strictNulls;");
+        writer.Line("private readonly bool _nativeConversions;");
         writer.Line("private readonly bool _ordered;");
         writer.Line("private readonly int[]? _readOrder;");
         for (var i = 0; i < members.Count; i++)
@@ -97,8 +98,10 @@ internal static class RowMapperEmitter
         writer.Line("return default!;");
         writer.Close();
         writer.Line();
+        writer.Line("// Providers with native conversions (e.g. SQLite TEXT dates) convert in their typed getter; otherwise only");
+        writer.Line("// lossless ValueConverter rules apply.");
         writer.Line($"private T Convert<T>({Reader} reader, int ordinal, string column)");
-        writer.Line($"    => global::VelQuery.Mapping.ValueConverter.Convert<T>(reader.GetValue(ordinal), _queryId, column, _strictNulls);");
+        writer.Line($"    => _nativeConversions ? reader.GetFieldValue<T>(ordinal) : global::VelQuery.Mapping.ValueConverter.Convert<T>(reader.GetValue(ordinal), _queryId, column, _strictNulls);");
         writer.Close();
         writer.Close();
         writer.Close();
@@ -110,6 +113,7 @@ internal static class RowMapperEmitter
         writer.Open($"public Mapper({Reader} reader, in global::VelQuery.Mapping.MappingContext context)");
         writer.Line("_queryId = context.QueryId;");
         writer.Line("_strictNulls = context.StrictNulls;");
+        writer.Line("_nativeConversions = context.NativeConversions;");
         for (var i = 0; i < members.Count; i++)
         {
             writer.Line($"var o{i} = -1;");

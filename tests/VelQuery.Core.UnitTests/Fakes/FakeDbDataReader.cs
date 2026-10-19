@@ -34,6 +34,28 @@ internal sealed class FakeDbDataReader : DbDataReader
 
     public int Id { get; }
 
+    /// <summary>
+    /// Simulates a driver with native conversions (SQLite-style): GetFieldValue&lt;T&gt; parses the stored value.
+    /// Counts calls so tests can prove which path ran.
+    /// </summary>
+    public static int NativeConversionCalls;
+
+    public override T GetFieldValue<T>(int ordinal)
+    {
+        var value = GetValue(ordinal);
+        if (value is string text && typeof(T) != typeof(string))
+        {
+            Interlocked.Increment(ref NativeConversionCalls);
+            object converted = typeof(T) == typeof(DateTime) ? DateTime.Parse(text, System.Globalization.CultureInfo.InvariantCulture)
+                : typeof(T) == typeof(decimal) ? decimal.Parse(text, System.Globalization.CultureInfo.InvariantCulture)
+                : typeof(T) == typeof(int) ? int.Parse(text, System.Globalization.CultureInfo.InvariantCulture)
+                : throw new InvalidCastException($"fake driver cannot convert to {typeof(T).Name}");
+            return (T)converted;
+        }
+
+        return base.GetFieldValue<T>(ordinal);
+    }
+
     public CommandBehavior Behavior { get; }
 
     /// <summary>Total Read/ReadAsync calls across all result sets.</summary>

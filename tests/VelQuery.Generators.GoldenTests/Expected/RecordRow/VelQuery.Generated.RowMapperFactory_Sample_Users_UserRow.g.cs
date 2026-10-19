@@ -26,6 +26,7 @@ namespace VelQuery.Generated
         {
             private readonly string? _queryId;
             private readonly bool _strictNulls;
+            private readonly bool _nativeConversions;
             private readonly bool _ordered;
             private readonly int[]? _readOrder;
             private readonly int _o0;
@@ -39,6 +40,7 @@ namespace VelQuery.Generated
             {
                 _queryId = context.QueryId;
                 _strictNulls = context.StrictNulls;
+                _nativeConversions = context.NativeConversions;
                 var o0 = -1;
                 var o1 = -1;
                 var o2 = -1;
@@ -259,8 +261,10 @@ namespace VelQuery.Generated
                 return default!;
             }
 
+            // Providers with native conversions (e.g. SQLite TEXT dates) convert in their typed getter; otherwise only
+            // lossless ValueConverter rules apply.
             private T Convert<T>(global::System.Data.Common.DbDataReader reader, int ordinal, string column)
-                => global::VelQuery.Mapping.ValueConverter.Convert<T>(reader.GetValue(ordinal), _queryId, column, _strictNulls);
+                => _nativeConversions ? reader.GetFieldValue<T>(ordinal) : global::VelQuery.Mapping.ValueConverter.Convert<T>(reader.GetValue(ordinal), _queryId, column, _strictNulls);
         }
     }
 }

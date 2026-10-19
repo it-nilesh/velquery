@@ -50,6 +50,13 @@ public sealed class ScalarRowMapperFactory<T> : IRowMapperFactory<T>
     private sealed class ConvertingMapper(string column, MappingContext context) : IRowMapper<T>
     {
         public T Map(DbDataReader reader)
-            => ValueConverter.Convert<T>(reader.GetValue(0), context.QueryId, column, context.StrictNulls);
+        {
+            if (context.NativeConversions && !reader.IsDBNull(0))
+            {
+                return reader.GetFieldValue<T>(0);
+            }
+
+            return ValueConverter.Convert<T>(reader.GetValue(0), context.QueryId, column, context.StrictNulls);
+        }
     }
 }

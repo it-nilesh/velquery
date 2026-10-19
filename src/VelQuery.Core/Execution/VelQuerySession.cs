@@ -274,7 +274,10 @@ public sealed partial class VelQuerySession : IVelQuerySession
         }
     }
 
-    internal MappingContext MappingContext(string queryId) => new(queryId, _options.StrictMapping);
+    internal MappingContext MappingContext(string queryId)
+        => new(queryId, _options.StrictMapping, NativeConversions);
+
+    private bool NativeConversions => (_provider.Capabilities & ProviderCapabilities.NativeConversions) != 0;
 
     internal bool StrictNulls => _options.StrictMapping;
 
