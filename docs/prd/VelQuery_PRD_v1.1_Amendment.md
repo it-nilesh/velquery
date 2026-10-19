@@ -42,7 +42,7 @@ request path, published benchmarks including losses, and "verified only when an 
 |---|---|---|
 | **1. SQL everywhere** | Finish SQL Server and PostgreSQL (CI on SQL Server 2022 + PostgreSQL, Native AOT matrix, cloud auth). Generic ADO.NET provider (reduced guarantees). Dedicated providers: MySQL/MariaDB (MySqlConnector), SQLite (Microsoft.Data.Sqlite), then analytics engines (DuckDB, ClickHouse, Snowflake, BigQuery) and distributed SQL. | Per provider: integration suite on the real engine in CI, compatibility-matrix row, bulk path where the engine has one, benchmark rows |
 | **2. Engine-neutral core** | Split Core into an engine-neutral execution contract (execute, stream, map, ownership, cancellation, errors) with ADO.NET as one implementation. No behavior change for SQL users. | ADR approved; SQL suites unchanged and green; no hot-path regression in benchmarks |
-| **3. Non-relational pilot** | One adapter end to end: generated typed contracts, compile-time checks for that query language, mapping, streaming, error contract, tests and benchmarks against the native driver. Pilot database: **open (D-13)**. | Pilot passes its parity gate and a design partner validates it |
+| **3. Non-relational pilot** | One adapter end to end: generated typed contracts, compile-time checks for that query language, mapping, streaming, error contract, tests and benchmarks against the native driver. Pilot database: **MongoDB** (D-13). | Pilot passes its parity gate and a design partner validates it |
 | **4. Expand by demand** | Further document, graph, key-value, wide-column, search and vector adapters | Each adapter passes the same gate as phase 3 |
 
 Phase 1 continues to deliver value on its own; phases 3–4 start only after phase 2 is approved.
@@ -70,8 +70,7 @@ Phase 1 continues to deliver value on its own; phases 3–4 start only after pha
 - **§19 Repository structure:** one package per database (`VelQuery.<Database>`), plus engine packages as needed.
 - **§20 Epics:** EP-15 generic ADO.NET provider; EP-16 MySQL/MariaDB; EP-17 SQLite; EP-18 analytics providers;
   EP-19 engine-neutral core; EP-20 non-relational pilot.
-- **§26 Decisions:** D-13 phase-3 pilot database (MongoDB, Cosmos DB, Neo4j or Redis) — open, owner: Product Owner,
-  due before phase 3 starts. D-14 support tiers (verified / preview / generic) — proposed as in VQ-DB-001..003.
+- **§26 Decisions:** D-13 phase-3 pilot database — **decided 2026-10-19: MongoDB** (most-used document database, local multi-arch container for CI, a rich query language (filters, aggregation) that best exercises typed contracts and compile-time checks, and real multi-document transactions); Cosmos DB and Redis follow in phase 4. D-14 support tiers (verified / preview / generic) — proposed as in VQ-DB-001..003.
 
 ## 6. Risks
 

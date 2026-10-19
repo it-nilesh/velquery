@@ -49,14 +49,14 @@ No database is **Verified** yet: CI does not exist yet (phase 1 work item).
 
 | Type | Database | Status | Candidate driver | Query surface |
 |---|---|---|---|---|
-| Document | MongoDB | Planned (phase 3 pilot candidate) | MongoDB.Driver | MQL / aggregation pipelines |
-| Document | Azure Cosmos DB (NoSQL API) | Planned (phase 3 pilot candidate) | Microsoft.Azure.Cosmos | Cosmos SQL-like queries |
+| Document | MongoDB | Planned (phase 3 pilot — D-13) | MongoDB.Driver | MQL / aggregation pipelines |
+| Document | Azure Cosmos DB (NoSQL API) | Planned (phase 4) | Microsoft.Azure.Cosmos | Cosmos SQL-like queries |
 | Document | Couchbase | Planned (phase 4) | Couchbase .NET SDK | SQL++ (N1QL) |
 | Document | RavenDB | By demand | RavenDB.Client | RQL |
-| Graph | Neo4j | Planned (phase 3 pilot candidate) | Neo4j.Driver | Cypher |
+| Graph | Neo4j | Planned (phase 4) | Neo4j.Driver | Cypher |
 | Graph | Amazon Neptune, Cosmos DB Gremlin | Planned (phase 4) | Gremlin.Net | Gremlin (openCypher on Neptune) |
 | Graph | Memgraph | By demand | Neo4j.Driver (Bolt) | Cypher |
-| Key-value | Redis | Planned (phase 3 pilot candidate) | StackExchange.Redis | Commands |
+| Key-value | Redis | Planned (phase 4) | StackExchange.Redis | Commands |
 | Key-value | Amazon DynamoDB | Planned (phase 4) | AWS SDK | API / PartiQL |
 | Wide-column | Apache Cassandra, ScyllaDB | Planned (phase 4) | DataStax C# driver | CQL |
 | Search | Elasticsearch, OpenSearch | Planned (phase 4) | Official .NET clients | JSON query DSL |
@@ -66,7 +66,7 @@ No database is **Verified** yet: CI does not exist yet (phase 1 work item).
 | Multi-model | ArangoDB, SurrealDB | By demand | Vendor clients | AQL, SurrealQL |
 | Event store / streaming | EventStoreDB, ksqlDB, Materialize | Not planned | — | — |
 
-Phase-3 pilot choice is decision **D-13** (open): MongoDB, Azure Cosmos DB, Neo4j or Redis.
+Phase-3 pilot (decision **D-13**, decided 2026-10-19): **MongoDB** — most-used document database, local multi-arch container for CI, a rich query language (filters, aggregation) that best exercises typed contracts and compile-time checks, and real multi-document transactions. Cosmos DB and Redis follow in phase 4.
 
 ## Definition of "supported"
 

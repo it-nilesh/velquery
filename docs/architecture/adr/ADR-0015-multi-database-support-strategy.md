@@ -28,7 +28,7 @@ drivers, non-SQL query languages, JSON or graph results, and different transacti
    or behavior change, and benchmarks must show no hot-path regression.
 4. **One pilot non-relational adapter (phase 3)** proves the engine contract end to end (generated typed contracts,
    language-specific compile-time checks, mapping, streaming, errors, tests, benchmarks) before more are added. The
-   pilot database is decision D-13 (open).
+   pilot database is **MongoDB** (decision D-13, 2026-10-19).
 5. **Same guarantees everywhere.** Every adapter keeps explicit ownership, cancellation, no hidden retries, strict
    typed mapping, value-free errors and no AI on the request path. A database that cannot meet one of these documents
    the gap in its matrix row instead of weakening the rule globally.
@@ -54,7 +54,7 @@ drivers, non-SQL query languages, JSON or graph results, and different transacti
 
 ## Open questions
 
-- D-13: phase-3 pilot database — MongoDB, Azure Cosmos DB, Neo4j or Redis.
+- ~~D-13: phase-3 pilot database~~ — decided 2026-10-19: MongoDB (most-used document database, local multi-arch container for CI, a rich query language (filters, aggregation) that best exercises typed contracts and compile-time checks, and real multi-document transactions).
 - Shape of non-SQL contracts: `[VelQueryMongo]`-style attributes per language, or one attribute with a language field.
 - Transaction semantics for engines with limited or no multi-statement transactions (Cassandra, Redis, DynamoDB).
 - How managed-only services (Snowflake, BigQuery, Cosmos DB) are tested in CI (emulators vs. sponsored accounts).
