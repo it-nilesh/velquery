@@ -94,7 +94,7 @@ public static class VelQueryDescriptorQueries
 
 /// <summary>
 /// VelQuery runtime SQL: <c>session.QueryAsync&lt;T&gt;(sql, QueryParameters)</c> with the mapper resolved from
-/// <see cref="RowMappers{T}"/> (registered by the generated module initializer), i.e. no reflection fallback.
+/// <see cref="VelQuery.Mapping.RowMappers{T}"/> (registered by the generated module initializer), i.e. no reflection fallback.
 /// </summary>
 public static class VelQueryRuntimeSqlQueries
 {

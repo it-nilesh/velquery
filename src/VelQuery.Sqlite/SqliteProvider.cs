@@ -46,7 +46,7 @@ public sealed class SqliteProvider : IVelQueryProvider
     /// SQLite has no stored procedures or output parameters.
     /// </summary>
     public ProviderCapabilities Capabilities =>
-        ProviderCapabilities.MultipleResults | ProviderCapabilities.Prepare | ProviderCapabilities.NativeConversions;
+        ProviderCapabilities.MultipleResults | ProviderCapabilities.NativeConversions;
 
     /// <summary>
     /// Returns <c>@name</c>. Microsoft.Data.Sqlite would also bind a bare name to <c>$name</c> or <c>:name</c>, but the

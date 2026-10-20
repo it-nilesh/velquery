@@ -1,7 +1,6 @@
 using System;
 using System.Data;
 using System.Data.Common;
-using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using VelQuery.Engine;
@@ -22,7 +21,6 @@ namespace VelQuery;
 /// </remarks>
 public sealed partial class VelQuerySession : IVelQuerySession
 {
-    private readonly VelQueryDataSource _dataSource;
     private readonly IVelQueryConnectionFactory? _connectionFactory;
     private readonly IVelQueryProvider _provider;
     private readonly ResolvedOptions _options;
@@ -37,7 +35,6 @@ public sealed partial class VelQuerySession : IVelQuerySession
 
     internal VelQuerySession(VelQueryDataSource dataSource, IVelQueryConnectionFactory connectionFactory)
     {
-        _dataSource = dataSource;
         _connectionFactory = connectionFactory;
         _provider = dataSource.Provider;
         _options = dataSource.Options;
@@ -45,7 +42,6 @@ public sealed partial class VelQuerySession : IVelQuerySession
 
     internal VelQuerySession(VelQueryDataSource dataSource, DbConnection callerConnection, DbTransaction? callerTransaction)
     {
-        _dataSource = dataSource;
         _provider = dataSource.Provider;
         _options = dataSource.Options;
         _pinnedConnection = callerConnection;
@@ -247,6 +243,11 @@ public sealed partial class VelQuerySession : IVelQuerySession
     internal DbCommand CreateCommand<TSpec>(DbConnection connection, in TSpec spec)
         where TSpec : struct, ICommandSpec
     {
+        if (spec.CommandType == CommandType.StoredProcedure)
+        {
+            RequireCapability(ProviderCapabilities.StoredProcedures, "stored procedures", spec.QueryId);
+        }
+
         var command = connection.CreateCommand();
         try
         {
@@ -259,12 +260,32 @@ public sealed partial class VelQuerySession : IVelQuerySession
 
             command.Transaction = _transaction;
             spec.Bind(command, _provider);
+            if ((_provider.Capabilities & ProviderCapabilities.OutputParameters) == 0)
+            {
+                foreach (DbParameter parameter in command.Parameters)
+                {
+                    if (parameter.Direction != ParameterDirection.Input)
+                    {
+                        RequireCapability(ProviderCapabilities.OutputParameters, "output parameters", spec.QueryId);
+                    }
+                }
+            }
+
             return command;
         }
         catch
         {
             command.Dispose();
             throw;
+        }
+    }
+
+    /// <summary>Fails fast with a clear error instead of an arbitrary driver failure when a provider lacks a feature.</summary>
+    internal void RequireCapability(ProviderCapabilities capability, string feature, string queryId)
+    {
+        if ((_provider.Capabilities & capability) == 0)
+        {
+            throw new VelQueryUnsupportedCapabilityException(queryId, $"the '{_provider.DialectId}' provider does not support {feature}.");
         }
     }
 

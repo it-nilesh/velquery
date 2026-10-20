@@ -51,17 +51,14 @@ public enum ProviderCapabilities
     /// <summary>No optional capabilities.</summary>
     None = 0,
 
-    /// <summary>Multiple result sets per command.</summary>
+    /// <summary>Multiple result sets per command. Required by <c>QueryMultipleAsync</c>.</summary>
     MultipleResults = 1 << 0,
 
-    /// <summary>Stored procedures with output parameters.</summary>
+    /// <summary><see cref="System.Data.CommandType.StoredProcedure"/> commands. Required by <c>AsStoredProcedure()</c> and stored-procedure descriptors.</summary>
     StoredProcedures = 1 << 1,
 
-    /// <summary>Output and input/output parameters.</summary>
+    /// <summary>Output, input/output and return-value parameters.</summary>
     OutputParameters = 1 << 2,
-
-    /// <summary>Explicit command preparation.</summary>
-    Prepare = 1 << 3,
 
     /// <summary>
     /// The driver's typed getters (<c>GetFieldValue&lt;T&gt;</c>) perform the documented conversions for its storage

@@ -4,7 +4,6 @@ using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
-using VelQuery.Execution;
 using VelQuery.Mapping;
 
 namespace VelQuery;

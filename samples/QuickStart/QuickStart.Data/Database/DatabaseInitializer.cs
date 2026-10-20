@@ -1,4 +1,3 @@
-using System.Reflection;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using QuickStart.Data.Logging;

@@ -4,7 +4,6 @@ using System.Data;
 using System.Threading;
 using System.Threading.Tasks;
 using VelQuery.Core.UnitTests.Fakes;
-using VelQuery.Mapping;
 using Xunit;
 
 namespace VelQuery.Core.UnitTests;

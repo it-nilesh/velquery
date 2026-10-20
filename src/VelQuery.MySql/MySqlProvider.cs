@@ -34,7 +34,7 @@ public sealed class MySqlProvider : IVelQueryProvider
 
     /// <inheritdoc />
     public ProviderCapabilities Capabilities =>
-        ProviderCapabilities.MultipleResults | ProviderCapabilities.StoredProcedures | ProviderCapabilities.OutputParameters | ProviderCapabilities.Prepare;
+        ProviderCapabilities.MultipleResults | ProviderCapabilities.StoredProcedures | ProviderCapabilities.OutputParameters;
 
     /// <summary>
     /// MySqlConnector binds <c>@name</c> placeholders to parameters named <c>name</c> or <c>@name</c>; the prefixed form is

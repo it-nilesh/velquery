@@ -3,7 +3,6 @@ using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
 using Microsoft.Data.SqlClient;
 using VelQuery.Benchmarks.Libraries;
-using VelQuery.Mapping;
 using VelQuery.SqlServer;
 
 namespace VelQuery.Benchmarks.Infrastructure;

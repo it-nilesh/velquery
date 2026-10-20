@@ -26,7 +26,7 @@ public sealed class SqlServerProvider : IVelQueryProvider
 
     /// <inheritdoc />
     public ProviderCapabilities Capabilities =>
-        ProviderCapabilities.MultipleResults | ProviderCapabilities.StoredProcedures | ProviderCapabilities.OutputParameters | ProviderCapabilities.Prepare;
+        ProviderCapabilities.MultipleResults | ProviderCapabilities.StoredProcedures | ProviderCapabilities.OutputParameters;
 
     /// <inheritdoc />
     public string FormatParameterName(string name) => "@" + name;

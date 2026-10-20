@@ -7,7 +7,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
 using VelQuery.Benchmarks.Libraries;
-using VelQuery.Mapping;
 using VelQuery.SqlServer;
 
 namespace VelQuery.Benchmarks.Infrastructure;

@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using VelQuery.Execution;
 using VelQuery.Mapping;
+using VelQuery.Providers;
 
 namespace VelQuery;
 
@@ -204,6 +205,7 @@ public sealed partial class VelQuerySession
     internal async Task<VelQueryMultipleReader> OpenMultipleAsync<TSpec>(TSpec spec, CancellationToken cancellationToken)
         where TSpec : struct, ICommandSpec
     {
+        RequireCapability(ProviderCapabilities.MultipleResults, "multiple result sets", spec.QueryId);
         ConnectionLease lease = default;
         DbCommand? command = null;
         DbDataReader? reader = null;

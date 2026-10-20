@@ -15,7 +15,10 @@ internal sealed class FakeProvider : IVelQueryProvider
     public string DialectId => "fake";
 
     public ProviderCapabilities Capabilities =>
-        ProviderCapabilities.MultipleResults | ProviderCapabilities.StoredProcedures | ProviderCapabilities.OutputParameters | ExtraCapabilities;
+        (ProviderCapabilities.MultipleResults | ProviderCapabilities.StoredProcedures | ProviderCapabilities.OutputParameters | ExtraCapabilities) & ~RemovedCapabilities;
+
+    /// <summary>Capabilities a test removes, to exercise capability enforcement.</summary>
+    public ProviderCapabilities RemovedCapabilities { get; set; }
 
     /// <summary>Additional capabilities a test enables (for example NativeConversions).</summary>
     public ProviderCapabilities ExtraCapabilities { get; set; }
