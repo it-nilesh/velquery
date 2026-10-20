@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>VelQuery.MongoDB.Generators.Tests</RootNamespace>
+    <!-- Roslyn's synchronous driver/parse APIs take optional tokens that add nothing to these in-memory tests. -->
+    <NoWarn>$(NoWarn);xUnit1051</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Expected generator output is checked in as .cs files but is data, not part of this project. -->
+    <Compile Remove="Expected/**" />
+    <None Include="Expected/**" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/VelQuery.MongoDB/VelQuery.MongoDB.csproj" />
+    <!-- Referenced as an assembly (to run it in memory) and as an analyzer (so this project's own contracts are generated). -->
+    <ProjectReference Include="../../src/VelQuery.MongoDB.Generators/VelQuery.MongoDB.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="true" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+</Project>
