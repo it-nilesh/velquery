@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>VelQuery.MongoDB.Generators</RootNamespace>
+    <Description>Roslyn incremental source generator for VelQuery.MongoDB query contracts: build-time JSON, placeholder and injection checks, typed binders and reflection-free BSON serializers.</Description>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <!-- Shipped inside the VelQuery.MongoDB package under analyzers/dotnet/cs, never as a lib reference. -->
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <IsPackable>false</IsPackable>
+    <!-- Compiler extensions have no synchronization context and no public API beyond the generator entry point. -->
+    <NoWarn>$(NoWarn);CA2007</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Equatable pipeline primitives are shared with the SQL generator by source, not by assembly reference. -->
+    <Compile Include="../VelQuery.Generators/Infrastructure/EquatableArray.cs" Link="Infrastructure/EquatableArray.cs" />
+    <Compile Include="../VelQuery.Generators/Infrastructure/DiagnosticInfo.cs" Link="Infrastructure/DiagnosticInfo.cs" />
+    <Compile Include="../VelQuery.Generators/Infrastructure/IsExternalInit.cs" Link="Infrastructure/IsExternalInit.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="VelQuery.MongoDB.Generators.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
+    <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
+  </ItemGroup>
+</Project>
