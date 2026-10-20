@@ -1,5 +1,6 @@
 using System;
 using System.Data.Common;
+using System.Threading;
 using Microsoft.Data.Sqlite;
 using VelQuery.Parameters;
 using VelQuery.Providers;
@@ -78,6 +79,18 @@ public sealed class SqliteProvider : IVelQueryProvider
 
         return "\"" + validatedIdentifier.ToString().Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
     }
+
+    /// <summary>
+    /// Microsoft.Data.Sqlite's <c>Cancel()</c> is a no-op and its async methods only observe the token between steps, so a
+    /// single long step (an aggregate, a large sort) would run to completion. The token instead calls
+    /// <c>sqlite3_interrupt</c> on the command's connection, which aborts the running statement with SQLITE_INTERRUPT; the
+    /// caller then receives <see cref="OperationCanceledException"/>. VelQuery disposes the registration before the
+    /// connection is released, so the interrupt can never reach another operation.
+    /// </summary>
+    public CancellationTokenRegistration RegisterCancellation(DbCommand command, CancellationToken cancellationToken)
+        => command?.Connection is SqliteConnection { Handle: { } handle }
+            ? cancellationToken.UnsafeRegister(static state => SQLitePCL.raw.sqlite3_interrupt((SQLitePCL.sqlite3)state!), handle)
+            : default;
 
     /// <summary>
     /// SQLITE_BUSY and SQLITE_LOCKED (including extended codes) are timeouts: Microsoft.Data.Sqlite retries them until

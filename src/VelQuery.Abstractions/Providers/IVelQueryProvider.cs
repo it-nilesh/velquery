@@ -1,5 +1,6 @@
 using System;
 using System.Data.Common;
+using System.Threading;
 using VelQuery.Engine;
 using VelQuery.Parameters;
 
@@ -26,6 +27,14 @@ public interface IVelQueryProvider : IVelQueryErrorClassifier
 
     /// <summary>Quotes an identifier that has already been validated against an allowlist (VQ-FR-042).</summary>
     string QuoteIdentifier(ReadOnlySpan<char> validatedIdentifier);
+
+    /// <summary>
+    /// Hooks the caller's token to interrupt a running command, for drivers whose async APIs do not cancel execution
+    /// themselves (SQLite). VelQuery disposes the registration before the command's connection is released, so a late
+    /// cancellation can never reach another operation on a pooled connection. Only called when the token can be
+    /// cancelled; the default does nothing.
+    /// </summary>
+    CancellationTokenRegistration RegisterCancellation(DbCommand command, CancellationToken cancellationToken) => default;
 
     /// <summary>ADO.NET drivers report failures as <see cref="DbException"/>.</summary>
     bool IVelQueryErrorClassifier.IsProviderException(Exception exception) => exception is DbException;

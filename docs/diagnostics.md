@@ -21,11 +21,26 @@ Generator diagnostics come from `VelQuery.Generators` (`[VelQuerySql]` contracts
 | VQ1019 | Warning | Generator | Unterminated string literal, quoted identifier or block comment in SQL; later placeholders unchecked | Fix the SQL text |
 | VQ1020 | Error | Generator | Two method parameters bind the same SQL parameter (for example via `[VelQueryParameter(Name)]`) | Remove the duplicate |
 | VQ1021 | Error | Generator | Internal generator failure (reported instead of crashing the build) | Report the issue |
+| VQ1022 | Warning | Generator | A placeholder style VelQuery does not bind (`?`, `?NNN`, `:name`, `$name`, `$1`, depending on the dialect); it would receive no value at run time | Use `@name` placeholders |
+| VQ1023 | Warning | Generator | The same placeholder is spelled with different casing (`@Id` and `@id`). In the SQLite dialect each spelling is bound so the query still works | Use one spelling |
+| VQ1024 | Warning | Generator | Unknown dialect in the `VelQuerySqlDialect` MSBuild property or `[VelQuerySql(Dialect = ...)]`; generic rules are used | Use `sqlserver`, `postgresql`, `mysql`, `sqlite` or `generic` |
 
-## Placeholder scanner limits
+## SQL dialects
 
-The SQL scanner is lexical (T-SQL style), not a parser. It recognizes `@Name` placeholders (letters, digits, `_`) and
-skips `'...'`/`N'...'` literals with `''` escapes, `[...]` and `"..."` identifiers, `--` and nested `/* */` comments,
-and `@@` system functions. It does not understand `DECLARE @local` variables (they are reported as VQ1001), other
-dialects' placeholder styles (`:name`, `$1`, `?`), `$`/`#` inside names, or dynamic SQL inside `EXEC('...')`.
-Stored procedure contracts (`CommandType.StoredProcedure`) bind every method parameter by name and skip the scan.
+The SQL scanner is lexical, not a parser, and follows the project's dialect: the `VelQuerySqlDialect` MSBuild property,
+which each provider package sets by default (`VelQuery.SqlServer` → `sqlserver`, `VelQuery.PostgreSQL` → `postgresql`,
+`VelQuery.MySql` → `mysql`, `VelQuery.Sqlite` → `sqlite`), or `[VelQuerySql(Dialect = "...")]` on one contract. Set the
+property yourself when a project references several providers. Unset means `sqlserver`.
+
+| Dialect | Skipped (no placeholders inside) | Also understood |
+|---|---|---|
+| all | `'...'` strings with `''`, `--` comments, `/* */` comments | `@Name` placeholders (letters, digits, `_`) |
+| `sqlserver` | `[...]` and `"..."` identifiers, `@@` functions | nested block comments |
+| `postgresql` | `"..."` identifiers, `$$...$$`/`$tag$...$tag$` bodies, `E'...'` with backslash escapes | nested block comments, `::` casts; `[...]` is an array subscript and `?`/`@@` are operators, so placeholders inside them are found; `$1` → VQ1022 |
+| `mysql` | backslash escapes in `'...'` and `"..."` strings, backtick identifiers, `#` comments, `-- ` comments (space required), `@@` variables | `/*! ... */` executable comments are scanned; `@var` user variables (assigned with `:=`, `SET` or `INTO`) are not parameters; `?`/`:name` → VQ1022 |
+| `sqlite` | `[...]`, backtick and `"..."` identifiers | non-nesting block comments; `?`, `?NNN`, `:name`, `$name` → VQ1022; spellings that differ in case are bound separately (SQLite binds case-sensitively) |
+| `generic` | `[...]`, backtick and `"..."` identifiers | `?`/`:name` → VQ1022 |
+
+Not understood in any dialect: `DECLARE @local` variables in T-SQL batches (reported as VQ1001) and SQL built inside
+`EXEC('...')`. Stored procedure contracts (`CommandType.StoredProcedure`) bind every method parameter by name and skip
+the scan.

@@ -80,6 +80,21 @@ internal static class Descriptors
         "VelQuery could not generate query contract '{0}' ({1}: {2}); please report this issue",
         DiagnosticSeverity.Error);
 
+    public static readonly DiagnosticDescriptor ForeignPlaceholder = Create(
+        "VQ1022", "Placeholder style is not bound by VelQuery",
+        "SQL of query '{0}' uses '{1}', a placeholder style VelQuery does not bind ({2} dialect); use '@name' placeholders",
+        DiagnosticSeverity.Warning);
+
+    public static readonly DiagnosticDescriptor InconsistentPlaceholderCase = Create(
+        "VQ1023", "Placeholder spelled with different casing",
+        "SQL of query '{0}' spells parameter '@{1}' also as '@{2}'; use one spelling (some drivers, such as SQLite, bind names case-sensitively)",
+        DiagnosticSeverity.Warning);
+
+    public static readonly DiagnosticDescriptor UnknownDialect = Create(
+        "VQ1024", "Unknown SQL dialect",
+        "Unknown SQL dialect '{0}'; expected sqlserver, postgresql, mysql, sqlite or generic (generic rules are used)",
+        DiagnosticSeverity.Warning);
+
     private static DiagnosticDescriptor Create(string id, string title, string message, DiagnosticSeverity severity)
         => new(id, title, message, Category, severity, isEnabledByDefault: true);
 }

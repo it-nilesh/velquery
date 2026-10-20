@@ -19,3 +19,6 @@ VQ1018 | VelQuery.Contracts | Error | Parameter type has no inferable DbType
 VQ1019 | VelQuery.Contracts | Warning | Unterminated literal, identifier or comment in SQL
 VQ1020 | VelQuery.Contracts | Error | Two method parameters bind the same SQL parameter
 VQ1021 | VelQuery.Contracts | Error | Internal generator failure
+VQ1022 | VelQuery.Contracts | Warning | Placeholder style (?, ?NNN, :name, $name, $1) that VelQuery does not bind
+VQ1023 | VelQuery.Contracts | Warning | Same placeholder spelled with different casing
+VQ1024 | VelQuery.Contracts | Warning | Unknown SQL dialect name

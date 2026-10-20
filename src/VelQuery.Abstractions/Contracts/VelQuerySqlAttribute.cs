@@ -57,6 +57,13 @@ public sealed class VelQuerySqlAttribute : Attribute
 
     /// <summary>Default command timeout in seconds; <c>0</c> (the default) uses the session's timeout.</summary>
     public int CommandTimeoutSeconds { get; set; }
+
+    /// <summary>
+    /// SQL dialect used for build-time placeholder checks: <c>sqlserver</c>, <c>postgresql</c>, <c>mysql</c>,
+    /// <c>sqlite</c> or <c>generic</c>. Overrides the project's <c>VelQuerySqlDialect</c> MSBuild property, which each
+    /// provider package sets by default; leave unset unless one project targets several databases.
+    /// </summary>
+    public string? Dialect { get; set; }
 }
 
 /// <summary>Result cardinality of a <see cref="VelQuerySqlAttribute"/> contract.</summary>

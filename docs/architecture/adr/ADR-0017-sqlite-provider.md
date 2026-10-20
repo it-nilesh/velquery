@@ -29,13 +29,14 @@ never parses strings) would reject them. Microsoft.Data.Sqlite's typed getters p
 - 70 integration tests pass locally with no Docker; bulk 1M rows ≈ 0.71 s, equal to a hand-written raw loop.
 - Driver coercions are inherited where SQLite's storage model makes them unavoidable (REAL→int truncates, non-numeric
   TEXT→0/false, `DateTime.Kind` not stored). Recommendation: STRICT tables and TEXT columns for decimals.
-- Cancellation is only observed before execution and between rows: `SqliteCommand.Cancel()` is a no-op and a single
-  long step is not interrupted.
+- Cancellation interrupts running statements: `IVelQueryProvider.RegisterCancellation` (added 2026-10-21) lets the provider
+  call `sqlite3_interrupt` when the token fires; Core registers it only for cancellable tokens and disposes it before the
+  connection is released. `SqliteCommand.Cancel()` itself remains a no-op.
 - The opt-in reflection fallback mapper does not use native conversions (it only has `GetValue()`); use generated or
   registered mappers on SQLite.
 
 ## Open questions
 
-- Provider cancellation hook (for example `IVelQueryProvider` registering `sqlite3_interrupt` on the token) so running
-  statements can be interrupted; touches Core execution paths.
-- Dialect-aware scanning: `?`, `?NNN`, `:name`, `$name` placeholders and case-sensitive binding (VQ-DB-008).
+- *Resolved 2026-10-21:* provider cancellation hook (`sqlite3_interrupt`).
+- *Resolved 2026-10-21:* dialect-aware scanning (`sqlite`): foreign placeholders → VQ1022, case-sensitive binding of
+  each spelling (VQ1023).

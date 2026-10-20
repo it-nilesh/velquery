@@ -1,0 +1,6 @@
+<Project>
+  <!-- Default SQL dialect for build-time placeholder checks; set VelQuerySqlDialect yourself to override. -->
+  <PropertyGroup>
+    <VelQuerySqlDialect Condition="'$(VelQuerySqlDialect)' == ''">mysql</VelQuerySqlDialect>
+  </PropertyGroup>
+</Project>

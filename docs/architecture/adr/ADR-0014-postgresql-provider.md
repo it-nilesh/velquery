@@ -41,5 +41,5 @@ provider-neutral (`IVelQueryProvider`), so the provider must add dialect behavio
 ## Open questions
 
 - Array parameters (`= ANY(@ids)`) API and generator support.
-- Dialect-aware SQL scanning (dollar quotes, `E''` strings, `ARRAY[...]`).
+- *Resolved 2026-10-21:* dialect-aware SQL scanning (`postgresql`: dollar quotes, `E''` strings, `ARRAY[...]`, `$1` → VQ1022).
 - PostgreSQL rows in the benchmark suite (PRD §14.1 requires separate SQL Server and PostgreSQL results).

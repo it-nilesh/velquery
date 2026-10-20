@@ -12,4 +12,7 @@
     <PackageReference Include="MySqlConnector" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="buildTransitive/VelQuery.MySql.props" Pack="true" PackagePath="buildTransitive" />
+  </ItemGroup>
 </Project>

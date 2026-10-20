@@ -280,6 +280,13 @@ public sealed partial class VelQuerySession : IVelQuerySession
         }
     }
 
+    /// <summary>
+    /// Provider interrupt hook (SQLite). Skipped entirely for tokens that cannot be cancelled, so the common untokened
+    /// path makes no extra call.
+    /// </summary>
+    internal CancellationTokenRegistration RegisterInterrupt(DbCommand command, CancellationToken cancellationToken)
+        => cancellationToken.CanBeCanceled ? _provider.RegisterCancellation(command, cancellationToken) : default;
+
     /// <summary>Fails fast with a clear error instead of an arbitrary driver failure when a provider lacks a feature.</summary>
     internal void RequireCapability(ProviderCapabilities capability, string feature, string queryId)
     {

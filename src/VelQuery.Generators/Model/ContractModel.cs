@@ -21,6 +21,9 @@ internal enum QueryOperation
 /// <summary>Output of the per-contract transform: an optional model plus diagnostics.</summary>
 internal sealed record ContractResult(ContractModel? Model, RowPlan? RowPlan, EquatableArray<DiagnosticInfo> Diagnostics);
 
+/// <summary>One <see cref="ContractResult"/> per SQL dialect, indexed by <c>SqlDialect</c>.</summary>
+internal sealed record ContractVariants(EquatableArray<ContractResult> Results);
+
 /// <summary>Everything needed to emit one contract's source file.</summary>
 internal sealed record ContractModel(
     string HintName,

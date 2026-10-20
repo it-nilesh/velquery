@@ -37,5 +37,6 @@ rows violating keys or constraints are skipped and NULL into NOT NULL becomes `'
 
 ## Open questions
 
-- Dialect-aware scanning: backslash-escaped quotes, `#` comments, `@user_vars`, executable comments (VQ-DB-008).
+- *Resolved 2026-10-21:* dialect-aware scanning (`mysql`): backslash escapes, `#`/`-- ` comments, backticks,
+  `@user_vars`, executable comments.
 - TiDB and other MySQL-compatible engines need their own test runs before being listed as supported.

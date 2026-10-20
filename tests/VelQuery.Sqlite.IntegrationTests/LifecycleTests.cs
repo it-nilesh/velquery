@@ -121,25 +121,49 @@ public sealed class LifecycleTests(SqliteFixture fixture) : IntegrationTest(fixt
     }
 
     [Fact]
-    public async Task A_single_long_running_step_is_not_interrupted_by_the_token_or_the_timeout()
+    public async Task Caller_cancellation_interrupts_a_single_long_running_step()
     {
-        // Microsoft.Data.Sqlite neither interrupts a running statement for the token nor applies CommandTimeout to it
-        // (the timeout only bounds lock waits). An aggregate does all its work in its first step, so cancellation is
-        // observed only when the first row is returned.
+        // Microsoft.Data.Sqlite only observes the token between steps and an aggregate does all its work in its first
+        // step; the provider's interrupt hook (sqlite3_interrupt) stops it mid-step.
         await using var session = Session();
+        var stopwatch = Stopwatch.StartNew();
+        Assert.Equal(40_000_000L, await session.ExecuteScalarAsync<long>(SlowAggregate(40), cancellationToken: Ct));
+        var completedAfter = stopwatch.Elapsed;
+        Assert.True(completedAfter > TimeSpan.FromSeconds(1), $"the query finished in {completedAfter}; pick a slower query");
+
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(Ct);
         cts.CancelAfter(TimeSpan.FromMilliseconds(100));
-        var stopwatch = Stopwatch.StartNew();
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => session.ExecuteScalarAsync<long>(SlowAggregate(40), cancellationToken: cts.Token));
+        stopwatch.Restart();
+        var ex = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => session.ExecuteScalarAsync<long>(SlowAggregate(40), cancellationToken: cts.Token));
         var cancelledAfter = stopwatch.Elapsed;
 
-        stopwatch.Restart();
-        Assert.Equal(40_000_000L, await session.Sql(SlowAggregate(40)).WithTimeout(TimeSpan.FromSeconds(1)).ExecuteScalarAsync<long>(Ct));
-        var completedAfter = stopwatch.Elapsed;
+        Assert.Equal(9, Assert.IsType<SqliteException>(ex.InnerException).SqliteErrorCode); // SQLITE_INTERRUPT
+        Assert.True(cancelledAfter < completedAfter / 2, $"cancellation took {cancelledAfter}, the full query {completedAfter}");
 
-        Assert.True(completedAfter > TimeSpan.FromSeconds(1), $"the query finished in {completedAfter}; pick a slower query");
-        Assert.True(cancelledAfter > completedAfter / 2, $"cancellation took {cancelledAfter}, the full query {completedAfter}: the driver now interrupts; update the docs");
+        // The connection is usable afterwards and a later operation is not interrupted by the old token.
+        Assert.Equal(1L, await session.ExecuteScalarAsync<long>("SELECT 1", cancellationToken: Ct));
+    }
+
+    [Fact]
+    public async Task Cancellation_interrupts_a_running_stream_and_releases_the_connection()
+    {
+        var counting = new CountingDataSource(Fixture.ConnectionString);
+        await using var dataSource = VelQuerySqlite.CreateDataSource(counting, ownsDataSource: true);
+        await using (var session = dataSource.CreateSession())
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+            cts.CancelAfter(TimeSpan.FromMilliseconds(100));
+            var stopwatch = Stopwatch.StartNew();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            {
+                await foreach (var _ in session.StreamAsync<long>("SELECT count(*) FROM (" + SlowAggregate(40).Replace("SELECT count(*) FROM", "SELECT x FROM", StringComparison.Ordinal) + ")", null, cts.Token))
+                {
+                }
+            });
+            Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(1), $"stream cancellation took {stopwatch.Elapsed}");
+        }
+
+        Assert.Equal(0, counting.Outstanding);
     }
 
     [Fact]

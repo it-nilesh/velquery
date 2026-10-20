@@ -28,7 +28,10 @@ public sealed class VelQuerySqlGenerator : IIncrementalGenerator
     /// <summary>Tracking names of the pipeline steps, for incrementality tests.</summary>
     public static class TrackingNames
     {
-        /// <summary>Per-contract parse results.</summary>
+        /// <summary>Per-contract parse results for every dialect.</summary>
+        public const string ContractVariants = "VelQuery.ContractVariants";
+
+        /// <summary>Per-contract parse results for the project's dialect.</summary>
         public const string Contracts = "VelQuery.Contracts";
 
         /// <summary>Per-contract source models.</summary>
@@ -43,11 +46,19 @@ public sealed class VelQuerySqlGenerator : IIncrementalGenerator
     /// <inheritdoc />
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
+        // The SQL dialect comes from the VelQuerySqlDialect MSBuild property (made compiler-visible by the package's
+        // build props); provider packages set a default. Empty keeps the T-SQL rules.
+        var dialect = context.AnalyzerConfigOptionsProvider.Select(static (options, _) =>
+            options.GlobalOptions.TryGetValue("build_property.VelQuerySqlDialect", out var value) ? value : null);
+
         var contracts = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 AttributeName,
                 static (node, _) => node is ClassDeclarationSyntax,
                 ContractParser.Parse)
+            .WithTrackingName(TrackingNames.ContractVariants)
+            .Combine(dialect)
+            .Select(static (pair, _) => ContractParser.Select(pair.Left, pair.Right))
             .WithTrackingName(TrackingNames.Contracts);
 
         // Diagnostics carry locations, which shift on unrelated edits above the contract; keep them out of the

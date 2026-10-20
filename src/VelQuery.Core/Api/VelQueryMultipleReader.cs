@@ -58,6 +58,7 @@ public sealed class VelQueryMultipleReader : IAsyncDisposable
         try
         {
             var reader = CurrentReader();
+            using var interrupt = _session.RegisterInterrupt(_command, cancellationToken);
             var rowMapper = mapper.Create(reader, _session.MappingContext(QueryId));
             var rows = new List<TRow>();
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))

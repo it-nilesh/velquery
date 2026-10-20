@@ -31,12 +31,41 @@ internal static class ContractParser
     private static readonly string[] CardinalityNames =
         ["Default", "Many", "First", "FirstOrDefault", "Single", "SingleOrDefault", "Scalar", "NonQuery"];
 
-    public static ContractResult Parse(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
+    /// <summary>
+    /// Parses the contract once per SQL dialect (scanning is cheap). The project's dialect is an MSBuild option that a
+    /// syntax transform cannot read, so the pipeline selects the matching variant afterwards; edits elsewhere stay cached.
+    /// </summary>
+    public static ContractVariants Parse(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
+    {
+        var variants = new ContractResult[SqlDialects.Count];
+        for (var dialect = 0; dialect < SqlDialects.Count; dialect++)
+        {
+            variants[dialect] = Parse(context, (SqlDialect)dialect, cancellationToken);
+        }
+
+        return new ContractVariants(variants.ToEquatableArray());
+    }
+
+    /// <summary>Selects the variant for the project dialect (<c>VelQuerySqlDialect</c>); unknown names fall back to generic.</summary>
+    public static ContractResult Select(ContractVariants variants, string? projectDialect)
+    {
+        if (SqlDialects.TryParse(projectDialect, out var dialect))
+        {
+            return variants.Results[(int)dialect];
+        }
+
+        var result = variants.Results[(int)SqlDialect.Generic];
+        var diagnostics = result.Diagnostics.ToList();
+        diagnostics.Add(DiagnosticInfo.Create(Descriptors.UnknownDialect, null, projectDialect ?? string.Empty));
+        return result with { Diagnostics = diagnostics.ToEquatableArray() };
+    }
+
+    private static ContractResult Parse(GeneratorAttributeSyntaxContext context, SqlDialect dialect, CancellationToken cancellationToken)
     {
         var diagnostics = new List<DiagnosticInfo>();
         try
         {
-            var (model, row) = ParseCore(context, diagnostics, cancellationToken);
+            var (model, row) = ParseCore(context, dialect, diagnostics, cancellationToken);
             return new ContractResult(model, row, diagnostics.ToEquatableArray());
         }
         catch (OperationCanceledException)
@@ -53,7 +82,7 @@ internal static class ContractParser
         }
     }
 
-    private static (ContractModel? Model, RowPlan? Row) ParseCore(GeneratorAttributeSyntaxContext context, List<DiagnosticInfo> diagnostics, CancellationToken cancellationToken)
+    private static (ContractModel? Model, RowPlan? Row) ParseCore(GeneratorAttributeSyntaxContext context, SqlDialect dialect, List<DiagnosticInfo> diagnostics, CancellationToken cancellationToken)
     {
         if (context.TargetSymbol is not INamedTypeSymbol type || context.TargetNode is not ClassDeclarationSyntax classSyntax)
         {
@@ -89,6 +118,14 @@ internal static class ContractParser
                     break;
                 case "CommandTimeoutSeconds" when named.Value.Value is int value:
                     timeout = value;
+                    break;
+                case "Dialect" when named.Value.Value is string name:
+                    // A per-contract dialect overrides the project's VelQuerySqlDialect.
+                    if (!SqlDialects.TryParse(name, out dialect))
+                    {
+                        diagnostics.Add(DiagnosticInfo.Create(Descriptors.UnknownDialect, LocationInfo.From(FindNamedArgument(attributeSyntax, "Dialect")) ?? classLocation, name));
+                    }
+
                     break;
             }
         }
@@ -277,7 +314,7 @@ internal static class ContractParser
         }
 
         // ---- Parameters and SQL placeholders (skipped when the signature is broken, to avoid cascades) ----
-        var bindings = !signatureValid ? new List<BindingModel>() : BindParameters(method, bindable, sql ?? string.Empty, queryId ?? string.Empty, commandType, sqlArgument, sqlLocation, diagnostics, ref valid);
+        var bindings = !signatureValid ? new List<BindingModel>() : BindParameters(method, bindable, sql ?? string.Empty, queryId ?? string.Empty, commandType, dialect, sqlArgument, sqlLocation, diagnostics, ref valid);
 
         if (!valid || operation is null || sessionName is null || queryId is null || sql is null)
         {
@@ -397,7 +434,7 @@ internal static class ContractParser
     }
 
     private static List<BindingModel> BindParameters(IMethodSymbol method, List<IParameterSymbol> bindable, string sql, string queryId,
-        int commandType, ExpressionSyntax? sqlArgument, LocationInfo? sqlLocation, List<DiagnosticInfo> diagnostics, ref bool valid)
+        int commandType, SqlDialect dialect, ExpressionSyntax? sqlArgument, LocationInfo? sqlLocation, List<DiagnosticInfo> diagnostics, ref bool valid)
     {
         var candidates = new List<(IParameterSymbol Parameter, string SqlName, ParameterOverrides Overrides, LocationInfo? Location)>();
         var seen = new Dictionary<string, IParameterSymbol>(StringComparer.OrdinalIgnoreCase);
@@ -435,16 +472,35 @@ internal static class ContractParser
             return bindings;
         }
 
-        var scan = SqlParameterScanner.Scan(sql);
+        var scan = SqlParameterScanner.Scan(sql, dialect);
         if (scan.Unterminated is not null)
         {
             diagnostics.Add(DiagnosticInfo.Create(Descriptors.UnterminatedSql, sqlLocation, queryId, scan.Unterminated));
         }
 
+        foreach (var foreign in scan.Foreign)
+        {
+            var location = PlaceholderLocation(sqlArgument, sql, foreign) ?? sqlLocation;
+            diagnostics.Add(DiagnosticInfo.Create(Descriptors.ForeignPlaceholder, location, queryId, foreign.Name, SqlDialects.DisplayName(dialect)));
+        }
+
+        // Names match method parameters case-insensitively. SQLite binds case-sensitively, so there each distinct
+        // spelling gets its own parameter; elsewhere one binding serves every spelling (SQL Server would reject the
+        // duplicate declaration).
         var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var spellings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var bound = new HashSet<string>(dialect == SqlDialect.Sqlite ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase);
         foreach (var placeholder in scan.Placeholders)
         {
-            if (!used.Add(placeholder.Name))
+            if (spellings.TryGetValue(placeholder.Name, out var first) && !string.Equals(first, placeholder.Name, StringComparison.Ordinal))
+            {
+                var location = PlaceholderLocation(sqlArgument, sql, placeholder) ?? sqlLocation;
+                diagnostics.Add(DiagnosticInfo.Create(Descriptors.InconsistentPlaceholderCase, location, queryId, first, placeholder.Name));
+            }
+
+            spellings[placeholder.Name] = first ?? placeholder.Name;
+            used.Add(placeholder.Name);
+            if (!bound.Add(placeholder.Name))
             {
                 continue;
             }

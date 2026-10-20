@@ -32,6 +32,7 @@ internal sealed class QueryStream<TSpec, TRow>(VelQuerySession session, TSpec sp
         private DbCommand? _command;
         private DbDataReader? _reader;
         private IRowMapper<TRow>? _mapper;
+        private CancellationTokenRegistration _interrupt;
         private bool _started;
         private bool _finished;
 
@@ -106,6 +107,7 @@ internal sealed class QueryStream<TSpec, TRow>(VelQuerySession session, TSpec sp
                     _started = true;
                     _lease = await _session.AcquireAsync(_token).ConfigureAwait(false);
                     _command = _session.CreateCommand(_lease.Connection, _spec);
+                    _interrupt = _session.RegisterInterrupt(_command, _token);
                     _reader = await _command.ExecuteReaderAsync(VelQuerySession.ReaderBehavior(_factory, CommandBehavior.Default), _token).ConfigureAwait(false);
                     _mapper = _factory.Create(_reader, _session.MappingContext(_spec.QueryId));
                 }
@@ -160,6 +162,8 @@ internal sealed class QueryStream<TSpec, TRow>(VelQuerySession session, TSpec sp
             _finished = true;
             try
             {
+                // Before the connection is released, so a late cancellation cannot interrupt its next user.
+                _interrupt.Dispose();
                 if (_started)
                 {
                     await _session.CleanupAsync(_reader, _command, _lease, faulted, _spec.QueryId).ConfigureAwait(false);

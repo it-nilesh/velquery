@@ -89,7 +89,7 @@ Status is **preview** until the full parity matrix passes on CI (PRD D-04).
 | Streaming 100k rows; early exit; pool hygiene | Verified | Pool of 1–2 connections after faults, cancellations and early exits |
 | Session transactions; caller-owned connection/transaction | Verified | |
 | Bulk insert (`BulkInsertAsync`, binary COPY) | Verified | Always all-or-nothing; constraints and triggers always apply. 1M rows ≈ 0.60 s vs 0.58 s raw Npgsql COPY on the dev VM |
-| Generator SQL scanning of PostgreSQL syntax | Partial | `@name` placeholders and `::` casts work; the scanner is T-SQL-lexical, so placeholders inside `ARRAY[...]` or dollar-quoted bodies are not seen (VQ1002 false positive) |
+| Generator SQL scanning of PostgreSQL syntax | Verified | `postgresql` dialect (set by the package): dollar quotes, `E'…'`, `::` casts, `ARRAY[…]`, `?`/`@@` operators; `$1` placeholders → VQ1022 |
 | Arrays / `ANY(@ids)` parameters | Not yet verified | Npgsql supports them; no VelQuery-specific API or tests yet |
 | Native AOT | Verified (osx-arm64, 2026-10-20) | `tests/VelQuery.NativeAot.Smoke` published with zero trim/AOT warnings and passed against PostgreSQL 17 (generated contracts, runtime SQL, streaming, transactions, strict NULL, binary COPY). linux-x64/win-x64 run in CI (`.github/workflows/ci.yml`) once the repository is hosted |
 
@@ -107,11 +107,11 @@ macOS arm64. Status **preview** until CI.
 | Multiple result sets; error in a later statement | Verified | |
 | Stored procedures / output parameters | Unsupported | SQLite has none |
 | Lock timeout (SQLITE_BUSY/LOCKED) → `VelQueryTimeoutException` | Verified | `CommandTimeout` bounds lock waits only, not running statements |
-| Caller cancellation | Verified (with limits) | Observed before execution and between rows; a single long step or lock wait is not interrupted (needs a provider cancellation hook) |
+| Caller cancellation | Verified | Before execution, between rows, and mid-statement: the provider's interrupt hook calls `sqlite3_interrupt`, so a single long step (aggregate, sort) stops promptly with SQLITE_INTERRUPT inside `OperationCanceledException`. Lock waits are retried by the driver until `CommandTimeout` |
 | Streaming 100k rows; early exit; connection hygiene | Verified | Every connection disposed (counted); the pool is unbounded and keyed by connection string |
 | Session transactions; caller-owned connection/transaction | Verified | Plain `:memory:` is per connection — use a named shared-cache database or a pinned session |
 | Bulk insert (`BulkInsertAsync`, one transaction + prepared INSERT) | Verified | All-or-nothing (savepoint inside a session transaction). 1M rows ≈ 0.71 s, same as raw Microsoft.Data.Sqlite; multi-row VALUES measured slower |
-| Generator SQL scanning of SQLite syntax | Partial | `@name`, `"…"`, `[…]`, comments work; `?`, `:name`, `$name` and backticks are not understood; placeholders are matched case-insensitively but SQLite binds case-sensitively |
+| Generator SQL scanning of SQLite syntax | Verified | `sqlite` dialect (set by the package): `[…]`, backtick and `"…"` identifiers, non-nesting comments; `?`, `:name`, `$name` → VQ1022; differently-cased spellings are bound separately |
 | Generic ADO.NET tier over `SqliteFactory` | Verified | No conversions unless `NativeConversions` is declared; BUSY/interrupt are plain provider errors |
 | Native AOT | Verified (osx-arm64, 2026-10-20) | Native smoke executable passed (incl. bulk insert); zero trim/AOT warnings |
 
@@ -135,7 +135,7 @@ Testcontainers, macOS arm64. Status **preview** until CI.
 | Streaming 100k rows; early exit; pool hygiene (1–2 connections) | Verified | |
 | Session transactions; caller-owned connection/transaction | Verified | |
 | Bulk insert (`BulkInsertAsync`, LOAD DATA LOCAL) | Verified | All-or-nothing; skipped rows/warnings fail with `MySqlBulkInsertException` (counts and codes only) and roll back the load (savepoint inside a session transaction); local infile disabled → `VelQueryUnsupportedCapabilityException`. 1M rows ≈ 1.29 s vs 1.32 s raw `MySqlBulkCopy` |
-| Generator SQL scanning of MySQL syntax | Partial | Backticks and `"…"` OK; backslash-escaped quotes, `#` comments and `@user_vars` cause VQ1019/VQ1001 false positives |
+| Generator SQL scanning of MySQL syntax | Verified | `mysql` dialect (set by the package): backslash escapes, backticks, `#` and `-- ` comments, executable comments, `@user_vars`; `?`/`:name` → VQ1022 |
 | Native AOT | Verified (osx-arm64, 2026-10-20) | Native smoke executable passed against MySQL 8.4 (bulk not exercised: needs local infile); zero trim/AOT warnings |
 
 ## MongoDB (phase 3 pilot) — `VelQuery.MongoDB`, MongoDB.Driver 3.12.0

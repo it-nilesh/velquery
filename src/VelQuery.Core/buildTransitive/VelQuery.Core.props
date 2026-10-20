@@ -1,0 +1,6 @@
+<Project>
+  <!-- Lets the VelQuery source generator read the project's SQL dialect (sqlserver, postgresql, mysql, sqlite, generic). -->
+  <ItemGroup>
+    <CompilerVisibleProperty Include="VelQuerySqlDialect" />
+  </ItemGroup>
+</Project>

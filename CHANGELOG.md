@@ -17,11 +17,14 @@ versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor versi
 - MongoDB adapter (`VelQuery.MongoDB`) with `[VelQueryMongo*]` contracts, VQ2xxx build-time checks including NoSQL
   injection rules, and generated reflection-free BSON serializers (ADR-0019).
 - Native AOT smoke test (SQLite, PostgreSQL, MySQL verified on osx-arm64); CI workflow and Dependabot configuration.
+- Dialect-aware build-time SQL scanning (`VelQuerySqlDialect` MSBuild property, set by each provider package, or
+  `[VelQuerySql(Dialect = ...)]`) for SQL Server, PostgreSQL, MySQL, SQLite and generic SQL; diagnostics VQ1022
+  (unbound placeholder style), VQ1023 (inconsistent placeholder casing) and VQ1024 (unknown dialect).
+- `IVelQueryProvider.RegisterCancellation`: SQLite cancellation now interrupts running statements (`sqlite3_interrupt`).
 
 ### Security
 - Pinned `System.Security.Cryptography.Pkcs` 9.0.21 (CVE-2026-84008) for the Microsoft.Data.SqlClient dependency.
 
 ### Known limitations
 - SQL Server is not Native AOT compatible (Microsoft.Data.SqlClient 7.1.1); MongoDB.Driver is not AOT-safe.
-- The build-time SQL scanner is T-SQL-oriented; some MySQL/SQLite/PostgreSQL syntax causes false positives.
 - No provider is "verified" in CI yet; all suites pass locally.

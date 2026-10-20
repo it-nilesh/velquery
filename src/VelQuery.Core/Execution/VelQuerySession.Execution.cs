@@ -50,6 +50,7 @@ public sealed partial class VelQuerySession
         {
             lease = await AcquireAsync(cancellationToken).ConfigureAwait(false);
             command = CreateCommand(lease.Connection, spec);
+            using var interrupt = RegisterInterrupt(command, cancellationToken);
             reader = await command.ExecuteReaderAsync(ReaderBehavior(factory, CommandBehavior.Default), cancellationToken).ConfigureAwait(false);
             var mapper = factory.Create(reader, MappingContext(spec.QueryId));
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
@@ -89,6 +90,7 @@ public sealed partial class VelQuerySession
         {
             lease = await AcquireAsync(cancellationToken).ConfigureAwait(false);
             command = CreateCommand(lease.Connection, spec);
+            using var interrupt = RegisterInterrupt(command, cancellationToken);
             reader = await command.ExecuteReaderAsync(ReaderBehavior(factory, isFirst ? CommandBehavior.SingleRow : CommandBehavior.Default), cancellationToken).ConfigureAwait(false);
             var mapper = factory.Create(reader, MappingContext(spec.QueryId));
             TRow? result;
@@ -143,6 +145,7 @@ public sealed partial class VelQuerySession
         {
             lease = await AcquireAsync(cancellationToken).ConfigureAwait(false);
             command = CreateCommand(lease.Connection, spec);
+            using var interrupt = RegisterInterrupt(command, cancellationToken);
             var affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             spec.Complete(command, StrictNulls);
             faulted = false;
@@ -176,6 +179,7 @@ public sealed partial class VelQuerySession
         {
             lease = await AcquireAsync(cancellationToken).ConfigureAwait(false);
             command = CreateCommand(lease.Connection, spec);
+            using var interrupt = RegisterInterrupt(command, cancellationToken);
             var value = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
             spec.Complete(command, StrictNulls);
             T result;
