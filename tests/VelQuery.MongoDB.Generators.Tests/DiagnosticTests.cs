@@ -2,7 +2,6 @@ using System;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Xunit;
-using static VelQuery.MongoDB.Generators.Tests.MongoGeneratorHarness;
 
 namespace VelQuery.MongoDB.Generators.Tests;
 
@@ -12,7 +11,10 @@ public sealed class DiagnosticTests
     private const string FindUsers = "public static partial Task<IReadOnlyList<User>> ExecuteAsync(VelQueryMongoSession session, string name, CancellationToken cancellationToken);";
 
     private static Diagnostic[] Run(string attribute, string method = FindUsers, string types = "")
-        => Diagnostics(Contract(attribute, method, types)).ToArray();
+    {
+        t_lastSource = MongoGeneratorHarness.Contract(attribute, method, types);
+        return MongoGeneratorHarness.Diagnostics(t_lastSource).ToArray();
+    }
 
     private static Diagnostic Single(string id, string attribute, string method = FindUsers, string types = "")
     {
@@ -23,14 +25,18 @@ public sealed class DiagnosticTests
 
     private static void Clean(string attribute, string method = FindUsers, string types = "")
     {
-        var source = Contract(attribute, method, types);
-        var (result, output) = MongoGeneratorHarness.Run(Compile(source));
+        var source = MongoGeneratorHarness.Contract(attribute, method, types);
+        var (result, output) = MongoGeneratorHarness.Run(MongoGeneratorHarness.Compile(source));
         Assert.Empty(result.Diagnostics);
-        Assert.Empty(CompilerProblems(output));
+        Assert.Empty(MongoGeneratorHarness.CompilerProblems(output));
     }
 
+    [ThreadStatic]
+    private static string? t_lastSource;
+
+    // Generator diagnostics use path-based locations (no SourceTree), so slice the source that produced them.
     private static string SourceAt(Diagnostic diagnostic)
-        => diagnostic.Location.SourceTree!.GetText().ToString(diagnostic.Location.SourceSpan);
+        => t_lastSource!.Substring(diagnostic.Location.SourceSpan.Start, diagnostic.Location.SourceSpan.Length);
 
     [Fact]
     public void Valid_contract_has_no_diagnostics()
@@ -82,7 +88,7 @@ public sealed class DiagnosticTests
     {
         var diagnostic = Single("VQ2003", """"[VelQueryMongoFind("bad.all", "bad", """{ }""")]"""",
             "public static partial Task<IReadOnlyList<Bad>> ExecuteAsync(VelQueryMongoSession session, CancellationToken cancellationToken);", types);
-        Assert.Contains(expected, diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains(expected, diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -91,7 +97,7 @@ public sealed class DiagnosticTests
         var diagnostic = Single("VQ2004", """"[VelQueryMongoFind("bad.all", "bad", """{ }""")]"""",
             "public static partial Task<IReadOnlyList<Bad>> ExecuteAsync(VelQueryMongoSession session, CancellationToken cancellationToken);",
             "public sealed class Bad { public int Id { get; set; } [BsonElement(\"x\")] public int A { get; set; } [BsonElement(\"x\")] public int B { get; set; } }");
-        Assert.Contains("'x'", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("'x'", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -116,7 +122,7 @@ public sealed class DiagnosticTests
     [InlineData("")]
     public void VQ2005_malformed_json_is_reported(string json)
     {
-        var diagnostics = Diagnostics(Contract($"[VelQueryMongoFind(\"users.bad\", \"users\", {Quote(json)})]", FindUsers));
+        var diagnostics = MongoGeneratorHarness.Diagnostics(MongoGeneratorHarness.Contract($"[VelQueryMongoFind(\"users.bad\", \"users\", {Quote(json)})]", FindUsers));
         Assert.Contains(diagnostics, d => d.Id is "VQ2005" or "VQ2014");
         Assert.DoesNotContain(diagnostics, d => d.Id == "VQ2017");
     }
@@ -125,8 +131,8 @@ public sealed class DiagnosticTests
     public void VQ2005_deep_nesting_is_bounded()
     {
         var json = new string('[', 5_000) + new string(']', 5_000);
-        var diagnostics = Diagnostics(Contract($"[VelQueryMongoAggregate(\"deep\", \"users\", {Quote(json)})]", FindUsers));
-        Assert.Contains(diagnostics, d => d.Id == "VQ2005" && d.GetMessage().Contains("nesting", StringComparison.Ordinal));
+        var diagnostics = MongoGeneratorHarness.Diagnostics(MongoGeneratorHarness.Contract($"[VelQueryMongoAggregate(\"deep\", \"users\", {Quote(json)})]", FindUsers));
+        Assert.Contains(diagnostics, d => d.Id == "VQ2005" && d.GetMessage(System.Globalization.CultureInfo.InvariantCulture).Contains("nesting", StringComparison.Ordinal));
     }
 
     // ---- VQ2006 / VQ2007 / VQ2008: the injection guarantee ----
@@ -149,7 +155,7 @@ public sealed class DiagnosticTests
     public void VQ2007_placeholders_are_rejected_where_values_are_code_or_identifiers(string json, string where)
     {
         var diagnostic = Single("VQ2007", $"[VelQueryMongoFind(\"users.bad\", \"users\", {Quote(json)})]");
-        Assert.Contains(where, diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains(where, diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
         Assert.Equal("@name", SourceAt(diagnostic));
     }
 
@@ -167,7 +173,7 @@ public sealed class DiagnosticTests
     public void VQ2007_pipeline_stages_that_take_identifiers_reject_placeholders(string json, string where)
     {
         var diagnostic = Single("VQ2007", $"[VelQueryMongoAggregate(\"users.bad\", \"users\", {Quote(json)})]");
-        Assert.Contains(where, diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains(where, diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -186,7 +192,7 @@ public sealed class DiagnosticTests
     {
         var diagnostic = Single("VQ2008", """"[VelQueryMongoFind("users.bad", "users", """{ "Name": @name }""")]"""",
             $"public static partial Task<IReadOnlyList<User>> ExecuteAsync(VelQueryMongoSession session, {type} name);");
-        Assert.Contains("name", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("name", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -212,7 +218,7 @@ public sealed class DiagnosticTests
     [InlineData("""{ "B": { "$binary": { "base64": "!!", "subType": "00" } } }""")]
     [InlineData("""{ "U": { "$uuid": "not-a-uuid" } }""")]
     public void VQ2009_invalid_extended_json_is_reported(string json)
-        => Assert.Contains(Diagnostics(Contract($"[VelQueryMongoFind(\"users.bad\", \"users\", {Quote(json)})]", FindUsers)), d => d.Id == "VQ2009");
+        => Assert.Contains(MongoGeneratorHarness.Diagnostics(MongoGeneratorHarness.Contract($"[VelQueryMongoFind(\"users.bad\", \"users\", {Quote(json)})]", FindUsers)), d => d.Id == "VQ2009");
 
     [Fact]
     public void Valid_extended_json_wrappers_compile()
@@ -238,8 +244,8 @@ public sealed class DiagnosticTests
     [Fact]
     public void VQ2010_contract_type_must_be_partial()
     {
-        var source = Contract("", "").Replace("public static partial class Contract", "[VelQueryMongoFind(\"q\", \"users\", \"{ }\")] public static class NotPartial { } public static partial class Contract", StringComparison.Ordinal);
-        Assert.Contains(Diagnostics(source), d => d.Id == "VQ2010");
+        var source = MongoGeneratorHarness.Contract("", "").Replace("public static partial class Contract", "[VelQueryMongoFind(\"q\", \"users\", \"{ }\")] public static class NotPartial { } public static partial class Contract", StringComparison.Ordinal);
+        Assert.Contains(MongoGeneratorHarness.Diagnostics(source), d => d.Id == "VQ2010");
     }
 
     [Fact]
@@ -252,7 +258,7 @@ public sealed class DiagnosticTests
     [InlineData("public static partial Task<IReadOnlyList<User>> ExecuteAsync(VelQueryMongoSession session, ref string name);")]
     [InlineData("static partial Task<IReadOnlyList<User>> ExecuteAsync(VelQueryMongoSession session, string name);")]
     public void VQ2012_invalid_signatures_are_reported(string method)
-        => Assert.Contains(Diagnostics(Contract(""""[VelQueryMongoFind("q", "users", """{ "Name": @name }""")]"""", method)), d => d.Id == "VQ2012");
+        => Assert.Contains(MongoGeneratorHarness.Diagnostics(MongoGeneratorHarness.Contract(""""[VelQueryMongoFind("q", "users", """{ "Name": @name }""")]"""", method)), d => d.Id == "VQ2012");
 
     [Theory]
     [InlineData("""[VelQueryMongoFind("q", "users", "{ }")]""", "public static partial Task<int> ExecuteAsync(VelQueryMongoSession session);")]
