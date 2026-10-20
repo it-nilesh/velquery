@@ -16,7 +16,7 @@ namespace VelQuery.MongoDB.Generators;
 /// <summary>
 /// Incremental generator for VelQuery.MongoDB contracts (<c>[VelQueryMongoFind]</c>, <c>[VelQueryMongoCount]</c>,
 /// <c>[VelQueryMongoAggregate]</c>, <c>[VelQueryMongoUpdate]</c>, <c>[VelQueryMongoDelete]</c>,
-/// <c>[VelQueryMongoInsert]</c>; ADR-0017). For each contract it checks the JSON at build time and emits a statically
+/// <c>[VelQueryMongoInsert]</c>; ADR-0019). For each contract it checks the JSON at build time and emits a statically
 /// cached descriptor, typed binders that build the BSON directly and the method body; for each distinct document type
 /// it emits a reflection-free BSON serializer that reaches the driver per operation, never through a registry. Output
 /// contains no timestamps and is ordered deterministically.

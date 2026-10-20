@@ -6,7 +6,7 @@ using Xunit;
 namespace VelQuery.MongoDB.IntegrationTests;
 
 /// <summary>
-/// NoSQL-injection guarantee (ADR-0017): arguments are always bound as values. Operator-shaped strings stay strings,
+/// NoSQL-injection guarantee (ADR-0019): arguments are always bound as values. Operator-shaped strings stay strings,
 /// and inside aggregation expressions a string such as "$Secret" stays a string instead of becoming a field path.
 /// Compile-time rejection of placeholders in key/operator/code positions is covered by the generator tests.
 /// </summary>

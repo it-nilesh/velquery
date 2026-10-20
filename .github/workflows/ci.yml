@@ -1,0 +1,82 @@
+# Build, test, Native AOT smoke and packaging. Integration suites start their databases with Testcontainers
+# (Docker is available on ubuntu runners); on x64 the SQL Server suite uses SQL Server 2022, not the ARM64 stand-in.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build-test:
+    name: Build and test (linux-x64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Restore (locked)
+        run: dotnet restore VelQuery.slnx --locked-mode
+      - name: Build (warnings are errors)
+        run: dotnet build VelQuery.slnx -c Release --no-restore
+      - name: Vulnerable packages
+        run: |
+          dotnet list VelQuery.slnx package --vulnerable --include-transitive | tee vulnerable.txt
+          if grep -q "has the following vulnerable packages" vulnerable.txt; then exit 1; fi
+      - name: Test (unit, generators, analyzers, SQL Server, PostgreSQL, MySQL, SQLite, MongoDB)
+        run: dotnet test --solution VelQuery.slnx -c Release --no-build
+      - name: Pack
+        run: dotnet pack VelQuery.slnx -c Release --no-build -o artifacts/packages
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: artifacts/packages
+          if-no-files-found: error
+
+  native-aot:
+    name: Native AOT smoke (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, rid: linux-x64, exe: VelQuery.NativeAot.Smoke, databases: true }
+          - { os: windows-latest, rid: win-x64, exe: VelQuery.NativeAot.Smoke.exe, databases: false }
+          - { os: macos-latest, rid: osx-arm64, exe: VelQuery.NativeAot.Smoke, databases: false }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Publish native executable
+        run: dotnet publish tests/VelQuery.NativeAot.Smoke -c Release -r ${{ matrix.rid }} -o aot
+      - name: Start PostgreSQL and MySQL
+        if: matrix.databases
+        run: |
+          docker run -d --name pg -e POSTGRES_PASSWORD=aot -p 5432:5432 postgres:17-alpine
+          docker run -d --name my -e MYSQL_ROOT_PASSWORD=aot -e MYSQL_DATABASE=aot -p 3306:3306 mysql:8.4
+          for i in $(seq 1 60); do
+            docker exec pg pg_isready -U postgres >/dev/null 2>&1 && docker exec my mysqladmin ping -uroot -paot --silent >/dev/null 2>&1 && break
+            sleep 2
+          done
+      - name: Run smoke (SQLite everywhere; PostgreSQL and MySQL on Linux)
+        shell: bash
+        env:
+          VELQUERY_SMOKE_POSTGRES: ${{ matrix.databases && 'Host=localhost;Username=postgres;Password=aot;Database=postgres' || '' }}
+          VELQUERY_SMOKE_MYSQL: ${{ matrix.databases && 'Server=localhost;User ID=root;Password=aot;Database=aot' || '' }}
+        run: ./aot/${{ matrix.exe }}

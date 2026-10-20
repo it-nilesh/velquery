@@ -21,6 +21,7 @@ An accepted ADR is not edited in substance; a new ADR supersedes it.
 | [ADR-0016](ADR-0016-engine-neutral-core.md) | Engine-neutral core (phase 2) | Proposed | 2026-10-20 |
 | [ADR-0017](ADR-0017-sqlite-provider.md) | SQLite provider | Proposed | 2026-10-20 |
 | [ADR-0018](ADR-0018-mysql-mariadb-provider.md) | MySQL / MariaDB provider | Proposed | 2026-10-20 |
+| [ADR-0019](ADR-0019-mongodb-adapter.md) | MongoDB adapter (phase 3 pilot) | Proposed | 2026-10-20 |
 
 Still to be written (PRD §27): ADR-0006 static SQL subset and schema snapshots, ADR-0007 Native AOT provider/auth
 matrix, ADR-0008 benchmark fairness and publishing of losses, ADR-0009 diagnostics privacy and backpressure,

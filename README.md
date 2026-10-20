@@ -3,8 +3,9 @@
 Query-first data access for .NET 10: hand-written SQL with compile-time checks, source-generated typed mapping,
 strict runtime semantics and native bulk ingestion. Not an ORM.
 
-> **Status: pre-alpha (preview).** SQL Server, PostgreSQL, MySQL/MariaDB and SQLite providers are implemented and pass
-> their integration suites locally; CI, Native AOT verification and NuGet packages do not exist yet. Do not use in production.
+> **Status: pre-alpha (preview).** SQL Server, PostgreSQL, MySQL/MariaDB, SQLite and MongoDB are implemented and pass
+> their integration suites locally, and Native AOT is verified for SQLite, PostgreSQL and MySQL on osx-arm64. CI is
+> configured but has not run (the repository is not hosted yet) and no packages are published. Not yet for production.
 
 ## Why VelQuery
 
@@ -53,9 +54,10 @@ A complete minimal API with a repository layer is in [samples/QuickStart](sample
 | PostgreSQL | Preview | `VelQuery.PostgreSQL` |
 | MySQL / MariaDB | Preview | `VelQuery.MySql` |
 | SQLite | Preview | `VelQuery.Sqlite` |
+| MongoDB (document, phase 3 pilot) | Preview | `VelQuery.MongoDB` |
 | Any other ADO.NET database | Generic (reduced guarantees) | `VelQuery.Core` (`VelQueryAdoNet`) |
 | Oracle, analytics, distributed SQL | Planned (phase 1) | — |
-| Document, graph, key-value, wide-column, search, vector | Planned (phases 3–4) | — |
+| Cosmos DB, Redis, graph, wide-column, search, vector | Planned (phase 4) | — |
 
 Full list, tiers and phases: [docs/database-support.md](docs/database-support.md). Per-feature evidence:
 [docs/provider-compatibility.md](docs/provider-compatibility.md).
@@ -76,6 +78,9 @@ comparing libraries on identical work, not as absolute numbers. Raw results and 
 |---|---|---|---|
 | SQL Server | 2.25 s | 2.38 s (SqlBulkCopy) | ~11 min |
 | PostgreSQL | 0.60 s | 0.58 s (binary COPY) | ~4 min |
+| MySQL 8.4 | 1.29 s | 1.32 s (MySqlBulkCopy) | ~15 min |
+| SQLite | 0.71 s | 0.71 s (prepared INSERT in one transaction) | 3–11 min |
+| MongoDB 8 | 2.08 s | 1.99 s (driver BulkWrite) — about 5% slower | — |
 
 EF Core is not benchmarked yet; no claims are made about it.
 
@@ -83,15 +88,15 @@ EF Core is not benchmarked yet; no claims are made about it.
 
 | Path | Contents |
 |---|---|
-| `src/` | `VelQuery.Abstractions` (incl. the engine-neutral `Engine/` kernel), `VelQuery.Core`, `VelQuery.SqlServer`, `VelQuery.PostgreSQL`, `VelQuery.MySql`, `VelQuery.Sqlite`, `VelQuery.Generators`, `VelQuery.Analyzers` |
-| `tests/` | Unit, generator golden/runtime, analyzer, and SQL Server / PostgreSQL / MySQL / SQLite integration tests |
+| `src/` | `VelQuery.Abstractions` (incl. the engine-neutral `Engine/` kernel), `VelQuery.Core`, `VelQuery.SqlServer`, `VelQuery.PostgreSQL`, `VelQuery.MySql`, `VelQuery.Sqlite`, `VelQuery.MongoDB`, `VelQuery.Generators`, `VelQuery.MongoDB.Generators`, `VelQuery.Analyzers` |
+| `tests/` | Unit, generator golden/runtime, analyzer, and SQL Server / PostgreSQL / MySQL / SQLite / MongoDB integration tests |
 | `benchmarks/` | BenchmarkDotNet suites plus `--cpu-profile`, `--alloc-profile` and `--bulk-profile` modes |
 | `samples/QuickStart/` | Minimal API + data library over SQL Server |
 | `docs/` | PRD, ADRs, database support, provider compatibility, diagnostics |
 
 ```bash
 dotnet build VelQuery.slnx               # warnings are errors
-dotnet test --solution VelQuery.slnx     # integration tests need Docker (SQL Server, PostgreSQL, MySQL containers; SQLite needs none)
+dotnet test --solution VelQuery.slnx     # integration tests need Docker (SQL Server, PostgreSQL, MySQL, MongoDB containers; SQLite needs none)
 ```
 
 ## Documentation
@@ -100,7 +105,8 @@ dotnet test --solution VelQuery.slnx     # integration tests need Docker (SQL Se
 - Decisions: [architecture decision records](docs/architecture/adr/README.md)
 - Databases: [support tiers and roadmap](docs/database-support.md), [provider compatibility](docs/provider-compatibility.md)
 - Compiler diagnostics: [VQ1xxx reference](docs/diagnostics.md)
-- Contributing and conventions: [AGENTS.md](AGENTS.md)
+- Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) and conventions in [AGENTS.md](AGENTS.md)
+- Security: [SECURITY.md](SECURITY.md); changes: [CHANGELOG.md](CHANGELOG.md)
 
 ## License
 

@@ -5,7 +5,7 @@ using Xunit;
 
 namespace VelQuery.MongoDB.Generators.Tests;
 
-/// <summary>Build-time diagnostics VQ2001–VQ2016 (ADR-0017), including the NoSQL-injection rules.</summary>
+/// <summary>Build-time diagnostics VQ2001–VQ2016 (ADR-0019), including the NoSQL-injection rules.</summary>
 public sealed class DiagnosticTests
 {
     private const string FindUsers = "public static partial Task<IReadOnlyList<User>> ExecuteAsync(VelQueryMongoSession session, string name, CancellationToken cancellationToken);";

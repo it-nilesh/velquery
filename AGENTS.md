@@ -20,16 +20,18 @@ The requirements baseline is [docs/prd/VelQuery_PRD_v1.0.md](docs/prd/VelQuery_P
 | `src/VelQuery.PostgreSQL` | `PostgreSqlProvider` (Npgsql), `VelQueryPostgreSql.CreateDataSource`, DI registration, `Bulk/` (binary COPY) |
 | `src/VelQuery.MySql` | `MySqlProvider` (MySqlConnector), `VelQueryMySql.CreateDataSource`, DI registration, `Bulk/` (MySqlBulkCopy, LOAD DATA LOCAL) |
 | `src/VelQuery.Sqlite` | `SqliteProvider` (Microsoft.Data.Sqlite, `NativeConversions`), `VelQuerySqlite.CreateDataSource`, DI registration, `Bulk/` (transaction + prepared INSERT) |
+| `src/VelQuery.MongoDB` | MongoDB adapter on the engine kernel (no Core dependency): data source, session, transactions, descriptors, generated BSON serializers, bulk insert (ADR-0019) |
 | `src/VelQuery.Generators` | Roslyn incremental generator for `[VelQuerySql]` contracts (netstandard2.0) |
+| `src/VelQuery.MongoDB.Generators` | Incremental generator for `[VelQueryMongo*]` contracts and VQ2xxx diagnostics (netstandard2.0) |
 | `src/VelQuery.Analyzers` | VQ1xxx diagnostics (netstandard2.0) |
-| `tests/` | Unit, golden, analyzer, and SQL Server / PostgreSQL / MySQL / SQLite integration tests (xUnit v3) |
+| `tests/` | Unit, golden, analyzer, and SQL Server / PostgreSQL / MySQL / SQLite / MongoDB integration tests (xUnit v3) |
 | `benchmarks/` | BenchmarkDotNet suites comparing raw ADO.NET, Dapper, Dapper.AOT and VelQuery |
 
 ## Build and test
 
 ```bash
 dotnet build VelQuery.slnx            # warnings are errors
-dotnet test --solution VelQuery.slnx  # integration tests need Docker (Testcontainers SQL Server, PostgreSQL, MySQL); SQLite needs none
+dotnet test --solution VelQuery.slnx  # integration tests need Docker (Testcontainers SQL Server, PostgreSQL, MySQL, MongoDB); SQLite needs none
 ```
 
 - SDK is pinned in `global.json` (.NET 10). Package versions live only in `Directory.Packages.props`; never put

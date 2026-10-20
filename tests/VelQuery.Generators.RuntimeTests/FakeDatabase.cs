@@ -231,7 +231,9 @@ internal sealed class TestProvider : IVelQueryProvider
 {
     public string DialectId => "test";
 
-    public ProviderCapabilities Capabilities => ProviderCapabilities.None;
+    // SQL Server-like: the contracts under test include a stored procedure with output-capable parameters.
+    public ProviderCapabilities Capabilities =>
+        ProviderCapabilities.MultipleResults | ProviderCapabilities.StoredProcedures | ProviderCapabilities.OutputParameters;
 
     public string FormatParameterName(string name) => "@" + name;
 

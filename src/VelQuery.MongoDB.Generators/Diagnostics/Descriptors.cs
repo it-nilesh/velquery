@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 namespace VelQuery.MongoDB.Generators.Diagnostics;
 
 /// <summary>
-/// Diagnostics reported by the MongoDB contract generator (ADR-0017). IDs are stable and live in the VQ2xxx range,
+/// Diagnostics reported by the MongoDB contract generator (ADR-0019). IDs are stable and live in the VQ2xxx range,
 /// separate from the SQL generator's VQ1xxx: VQ2001/VQ2002 mirror VQ1001/VQ1002 (VQ-DB-006); VQ2006–VQ2008 carry
 /// the NoSQL-injection guarantee.
 /// </summary>

@@ -6,7 +6,7 @@ using MongoDB.Bson.Serialization;
 namespace VelQuery.MongoDB.Serialization;
 
 /// <summary>
-/// Base for the BSON serializers VelQuery.MongoDB.Generators emits per document type (ADR-0017). Generated serializers
+/// Base for the BSON serializers VelQuery.MongoDB.Generators emits per document type (ADR-0019). Generated serializers
 /// read fields by name with typed <see cref="IBsonReader"/> calls, apply VelQuery's strict mapping rules (VQ-FR-016)
 /// and never use reflection, class maps or the driver's global serializer registry. They reach the driver per
 /// operation, through descriptors, so no process-wide registration is needed or made.

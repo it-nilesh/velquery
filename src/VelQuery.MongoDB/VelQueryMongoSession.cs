@@ -7,7 +7,7 @@ using VelQuery.Engine;
 namespace VelQuery.MongoDB;
 
 /// <summary>
-/// A unit of work against MongoDB (ADR-0017). Not thread-safe; create one per logical operation or request scope.
+/// A unit of work against MongoDB (ADR-0019). Not thread-safe; create one per logical operation or request scope.
 /// </summary>
 /// <remarks>
 /// <para><b>Ownership.</b> By default each operation runs on its own pooled connection with no driver session, like

@@ -3,10 +3,15 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>VelQuery.MongoDB</RootNamespace>
     <IsAotCompatible>true</IsAotCompatible>
-    <Description>MongoDB adapter for VelQuery (phase 3 pilot, ADR-0017): typed find/aggregate/write contracts checked at build time, generated reflection-free BSON serializers, explicit session and transaction ownership. Built on the official MongoDB.Driver; does not depend on VelQuery.Core.</Description>
+    <Description>MongoDB adapter for VelQuery (phase 3 pilot, ADR-0019): typed find/aggregate/write contracts checked at build time, generated reflection-free BSON serializers, explicit session and transaction ownership. Built on the official MongoDB.Driver; does not depend on VelQuery.Core.</Description>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../VelQuery.Abstractions/VelQuery.Abstractions.csproj" />
+  </ItemGroup>
+  <!-- The generator ships inside this package (analyzers/dotnet/cs) so consumers get it automatically; see VelQuery.Core. -->
+  <ItemGroup>
+    <ProjectReference Include="../VelQuery.MongoDB.Generators/VelQuery.MongoDB.Generators.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <None Include="../VelQuery.MongoDB.Generators/bin/$(Configuration)/netstandard2.0/VelQuery.MongoDB.Generators.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="MongoDB.Driver" />

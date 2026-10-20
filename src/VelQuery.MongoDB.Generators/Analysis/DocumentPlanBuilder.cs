@@ -9,7 +9,7 @@ using VelQuery.MongoDB.Generators.Model;
 namespace VelQuery.MongoDB.Generators.Analysis;
 
 /// <summary>
-/// Builds compile-time serializer plans for a document type and every document type it embeds (ADR-0017):
+/// Builds compile-time serializer plans for a document type and every document type it embeds (ADR-0019):
 /// <list type="bullet">
 /// <item>Construction mirrors the SQL row mapper (ADR-0004): a public parameterless constructor plus settable
 /// properties, otherwise the public constructor with the most parameters (for example a record's primary

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Native AOT smoke test (PRD §18, EP-07): published with PublishAot and run as a native executable. Not an xUnit
+    project — exit code 0 means every scenario passed. SQLite always runs; other providers run when their
+    connection string variable is set (see Program.cs). SQL Server is excluded: Microsoft.Data.SqlClient 7.1.1 is not
+    Native AOT compatible (IL2026/IL3050 inside the driver), see docs/provider-compatibility.md.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <PublishAot>true</PublishAot>
+    <!-- Every RID CI publishes, so locked-mode restore has the ILCompiler runtime packs for each. -->
+    <RuntimeIdentifiers>linux-x64;win-x64;osx-arm64</RuntimeIdentifiers>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/VelQuery.Sqlite/VelQuery.Sqlite.csproj" />
+    <ProjectReference Include="../../src/VelQuery.PostgreSQL/VelQuery.PostgreSQL.csproj" />
+    <ProjectReference Include="../../src/VelQuery.MySql/VelQuery.MySql.csproj" />
+    <ProjectReference Include="../../src/VelQuery.Generators/VelQuery.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

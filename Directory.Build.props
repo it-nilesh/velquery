@@ -16,6 +16,20 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
+  <!-- Package metadata for every packable library under src/. -->
+  <PropertyGroup>
+    <PackageTags>sql;database;query;dapper-alternative;source-generator;aot;sqlserver;postgresql;mysql;sqlite;mongodb</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <!-- Reproducible paths in CI builds (GitHub Actions sets GITHUB_ACTIONS=true). -->
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(IsPackable)' != 'false'">
+    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="/" Visible="false" />
+  </ItemGroup>
+
   <PropertyGroup Condition="'$(MSBuildProjectDirectory.Contains(`/tests/`))' == 'true' Or '$(MSBuildProjectDirectory.Contains(`/benchmarks/`))' == 'true' Or '$(MSBuildProjectDirectory.Contains(`/samples/`))' == 'true'">
     <IsPackable>false</IsPackable>
     <!-- Tests, benchmarks and samples are not library code: no ConfigureAwait or doc-comment requirements. -->

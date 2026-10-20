@@ -8,7 +8,7 @@ namespace VelQuery.MongoDB.Serialization;
 /// <summary>
 /// Converts typed contract arguments into BSON <em>values</em> for generated filters, updates and pipelines. Every
 /// overload produces a scalar or an array of scalars; none can produce a document, so an argument can never become a
-/// query operator such as <c>$where</c> or <c>$ne</c> (the NoSQL-injection guarantee, ADR-0017). Strings stay strings
+/// query operator such as <c>$where</c> or <c>$ne</c> (the NoSQL-injection guarantee, ADR-0019). Strings stay strings
 /// whatever they contain. Conversions follow <see cref="MongoBsonWriting"/>: decimals as Decimal128, Guids as binary
 /// subtype 4, dates as UTC instants (Unspecified kind rejected), enums as their integral value.
 /// </summary>

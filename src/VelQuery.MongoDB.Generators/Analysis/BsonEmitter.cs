@@ -28,7 +28,7 @@ internal sealed class BindableParameter(IParameterSymbol symbol, string field, V
 
 /// <summary>
 /// Turns contract JSON into C# that builds the BSON directly (no JSON parsing at run time) and enforces where
-/// arguments may appear. This is the NoSQL-injection guarantee (ADR-0017):
+/// arguments may appear. This is the NoSQL-injection guarantee (ADR-0019):
 /// <list type="number">
 /// <item>Placeholders are values only; a placeholder in key position is a parse error (VQ2006).</item>
 /// <item>Parameters bind only as scalars or sequences of scalars, never documents (VQ2008), so no argument can add an

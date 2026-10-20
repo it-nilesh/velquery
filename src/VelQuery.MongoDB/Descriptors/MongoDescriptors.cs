@@ -8,7 +8,7 @@ namespace VelQuery.MongoDB;
 
 /// <summary>
 /// Builds a BSON document (filter or update) from typed arguments. Generated binders construct the document directly
-/// from the contract's compile-time-checked JSON; arguments only ever appear as values (ADR-0017).
+/// from the contract's compile-time-checked JSON; arguments only ever appear as values (ADR-0019).
 /// </summary>
 public delegate BsonDocument MongoDocumentBinder<TArgs>(in TArgs args);
 

@@ -3,7 +3,7 @@ using System;
 namespace VelQuery.MongoDB;
 
 /// <summary>
-/// Base for MongoDB query contracts (ADR-0017). Apply a derived attribute to a <see langword="partial"/> class that
+/// Base for MongoDB query contracts (ADR-0019). Apply a derived attribute to a <see langword="partial"/> class that
 /// declares exactly one <see langword="partial"/> method without a body; VelQuery.MongoDB.Generators checks the JSON at
 /// build time and emits a cached descriptor, a typed argument binder that builds the BSON directly, a reflection-free
 /// serializer for the document type and the method body.

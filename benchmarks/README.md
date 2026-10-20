@@ -105,3 +105,12 @@ Every `InterceptsLocation` line must point into `DapperLibraries.cs` lines insid
 - p95 is reported; p99 from a short run is not meaningful (too few samples). Use the full job for percentiles.
 - Loopback container DB: network latency is not represented, and container/VM scheduling adds noise.
 - No EF Core, RepoDB or LINQ to DB baselines yet (PRD §14.1 lists them).
+
+## Recorded runs
+
+| Run | What it shows |
+|---|---|
+| `results/2026-10-10-apple-m5pro-shortrun/` | **Historical baseline before the performance work**: hand-written VelQuery mapper, `CommandBehavior.Default`, `List<T>` buffering. Superseded — VelQuery's allocations dropped 29–44% afterwards (see the root README). Kept to show the before/after. |
+
+Current numbers come from `--cpu-profile`, `--bulk-profile` and short BenchmarkDotNet runs and are summarised in the root
+[README](../README.md); re-run them on your hardware rather than comparing across machines.

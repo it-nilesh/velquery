@@ -5,7 +5,7 @@ Tracks what VelQuery supports per database provider, what has been verified, and
 exists but has no passing test on a listed environment is "implemented, not yet verified". Nothing here is a support
 claim for an untested combination (PRD §10.1 "important qualification").
 
-Last updated: 2026-10-11 (VelQuery 0.1.0-alpha). For the full list of planned databases and support tiers see
+Last updated: 2026-10-20 (VelQuery 0.1.0-alpha). For the full list of planned databases and support tiers see
 [database-support.md](database-support.md).
 
 ## Legend
@@ -55,18 +55,11 @@ SQL Server 2022 (x64, `mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04`), 
 
 ### Native AOT (SQL Server)
 
-| RID | Auth mode | Status |
-|---|---|---|
-| linux-x64 | SQL authentication | Not yet verified |
-| linux-x64 | Microsoft Entra ID (any flavour) | Not yet verified |
-| win-x64 | SQL authentication | Not yet verified |
-| win-x64 | Integrated (SSPI) | Not yet verified |
-| win-x64 | Microsoft Entra ID | Not yet verified |
-| osx-arm64 / linux-arm64 | any | Not yet verified |
-
-The VelQuery runtime assemblies are built with `IsAotCompatible=true` and trimming/AOT warnings as errors; that says
-nothing about SqlClient's own AOT behaviour per authentication mode (PRD §10.1, [R6]). No AOT publish smoke test exists
-yet (`tests/VelQuery.NativeAot.Smoke` is planned).
+**Unsupported with Microsoft.Data.SqlClient 7.1.1.** Publishing `tests/VelQuery.NativeAot.Smoke` with SQL Server
+included fails with IL2026/IL3050 errors raised *inside the driver* (System.Text.Json use in enclave and vector
+support, `DiagnosticSource.Write<T>` listeners, reflection-based authentication-provider and retry-logic loading).
+VelQuery.SqlServer itself is `IsAotCompatible` and warning-free; the status changes when a SqlClient release is AOT-clean.
+Re-check with: `dotnet publish tests/VelQuery.NativeAot.Smoke -c Release -r <rid>` after re-adding the SqlServer reference.
 
 ### Authentication matrix (JIT)
 
@@ -98,7 +91,7 @@ Status is **preview** until the full parity matrix passes on CI (PRD D-04).
 | Bulk insert (`BulkInsertAsync`, binary COPY) | Verified | Always all-or-nothing; constraints and triggers always apply. 1M rows ≈ 0.60 s vs 0.58 s raw Npgsql COPY on the dev VM |
 | Generator SQL scanning of PostgreSQL syntax | Partial | `@name` placeholders and `::` casts work; the scanner is T-SQL-lexical, so placeholders inside `ARRAY[...]` or dollar-quoted bodies are not seen (VQ1002 false positive) |
 | Arrays / `ANY(@ids)` parameters | Not yet verified | Npgsql supports them; no VelQuery-specific API or tests yet |
-| Native AOT (any RID / auth) | Not yet verified | Npgsql supports NativeAOT via `NpgsqlSlimDataSourceBuilder`; `CreateDataSource(NpgsqlDataSource)` accepts one |
+| Native AOT | Verified (osx-arm64, 2026-10-20) | `tests/VelQuery.NativeAot.Smoke` published with zero trim/AOT warnings and passed against PostgreSQL 17 (generated contracts, runtime SQL, streaming, transactions, strict NULL, binary COPY). linux-x64/win-x64 run in CI (`.github/workflows/ci.yml`) once the repository is hosted |
 
 ## SQLite (phase 1) — `VelQuery.Sqlite`, Microsoft.Data.Sqlite 10.0.13 (SQLite 3.53.3)
 
@@ -120,7 +113,7 @@ macOS arm64. Status **preview** until CI.
 | Bulk insert (`BulkInsertAsync`, one transaction + prepared INSERT) | Verified | All-or-nothing (savepoint inside a session transaction). 1M rows ≈ 0.71 s, same as raw Microsoft.Data.Sqlite; multi-row VALUES measured slower |
 | Generator SQL scanning of SQLite syntax | Partial | `@name`, `"…"`, `[…]`, comments work; `?`, `:name`, `$name` and backticks are not understood; placeholders are matched case-insensitively but SQLite binds case-sensitively |
 | Generic ADO.NET tier over `SqliteFactory` | Verified | No conversions unless `NativeConversions` is declared; BUSY/interrupt are plain provider errors |
-| Native AOT | Not yet verified | Library builds with `IsAotCompatible` and no warnings |
+| Native AOT | Verified (osx-arm64, 2026-10-20) | Native smoke executable passed (incl. bulk insert); zero trim/AOT warnings |
 
 ## MySQL / MariaDB (phase 1) — `VelQuery.MySql`, MySqlConnector 2.6.2
 
@@ -143,7 +136,27 @@ Testcontainers, macOS arm64. Status **preview** until CI.
 | Session transactions; caller-owned connection/transaction | Verified | |
 | Bulk insert (`BulkInsertAsync`, LOAD DATA LOCAL) | Verified | All-or-nothing; skipped rows/warnings fail with `MySqlBulkInsertException` (counts and codes only) and roll back the load (savepoint inside a session transaction); local infile disabled → `VelQueryUnsupportedCapabilityException`. 1M rows ≈ 1.29 s vs 1.32 s raw `MySqlBulkCopy` |
 | Generator SQL scanning of MySQL syntax | Partial | Backticks and `"…"` OK; backslash-escaped quotes, `#` comments and `@user_vars` cause VQ1019/VQ1001 false positives |
-| Native AOT | Not yet verified | |
+| Native AOT | Verified (osx-arm64, 2026-10-20) | Native smoke executable passed against MySQL 8.4 (bulk not exercised: needs local infile); zero trim/AOT warnings |
+
+## MongoDB (phase 3 pilot) — `VelQuery.MongoDB`, MongoDB.Driver 3.12.0
+
+Evidence: `tests/VelQuery.MongoDB.IntegrationTests` (79 tests) on `mongo:8` as a single-node replica set via
+Testcontainers, and `tests/VelQuery.MongoDB.Generators.Tests` (104 tests), macOS arm64. Status **preview** until CI.
+
+| Capability | Status | Notes |
+|---|---|---|
+| Find (buffered, First/Single/OrDefault, stream), count, aggregate | Verified | Single checks for a second document (`limit: 2`) |
+| Update / delete counts | Verified | Matched / modified / upserted id and deleted count exactly as the server reports |
+| Generated contracts and VQ2001–VQ2017 diagnostics | Verified | Build-time JSON/Extended JSON parsing; exact diagnostic locations in all C# string forms |
+| NoSQL-injection resistance | Verified | Operator-shaped strings match nothing in filters, `$in` and `$expr`; `$literal` wrapping in expressions |
+| Mapping: string, bool, int, long, double, decimal/Decimal128, Guid (subtype 4), UTC DateTime (ms), ObjectId, byte[], enums, nullable forms, arrays/lists, nested/recursive documents, `BsonDocument` | Verified | Not supported: float, short, DateTimeOffset, DateOnly, TimeSpan, dictionaries, polymorphism, naming conventions |
+| No global serializer registration | Verified | `BsonClassMap.IsClassMapRegistered` stays false |
+| Transactions (commit, dispose → abort, guard, caller-owned session) | Verified | Requires a replica set or sharded cluster |
+| Streaming with early exit; connection hygiene | Verified | Server cursors return to baseline |
+| Timeouts | Verified (reads) | Reads: server `maxTimeMS` (+ client deadline for buffered); writes: client deadline only |
+| Bulk insert (ordered `BulkWrite`) | Verified | Not all-or-nothing outside a transaction (earlier documents stay); nothing commits inside one. 1M docs ≈ 2.08 s vs 1.99 s raw driver |
+| Retries | Verified | Off on VelQuery-created clients unless the connection string enables them; application-owned clients keep their settings |
+| Native AOT | Unsupported | MongoDB.Driver is not AOT-safe |
 
 ## How to update this file
 
