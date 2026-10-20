@@ -23,8 +23,8 @@ carry over to a document database without depending on `VelQuery.Core` (ADO.NET)
    reject placeholders (VQ2007); arguments in aggregation-expression contexts are wrapped in `$literal`.
 4. **Mapping.** A generated `IBsonSerializer<T>` per document type: typed reads, byte-level field-name matching, strict
    lossless conversions, unknown fields skipped, duplicate/missing/NULL failures naming the field path. It reaches the
-   driver per operation — rendered projection / pipeline output serializers for reads, `BsonDocumentWrapper` for
-   writes — never through the global serializer registry or class maps (tested).
+   driver per operation — rendered projection / pipeline output serializers for reads — never through the global
+   serializer registry or class maps (tested).
 5. **Ownership and errors.** Data sources own only clients they create; sessions are per-operation by default;
    `BeginTransactionAsync` owns a driver session and multi-document transaction (`IVelQueryTransactionScope`);
    application-owned `IClientSessionHandle`s are never committed, aborted or ended; `SessionGuard` rejects overlap.
@@ -32,16 +32,25 @@ carry over to a document database without depending on `VelQuery.Core` (ADO.NET)
    key 11000 inspectable).
 6. **No implicit retries.** VelQuery-created clients disable retryable reads/writes and adaptive retries unless the
    connection string explicitly enables them. The driver-mandated single retry of commit/abort is documented.
-7. **Bulk.** Ordered `BulkWrite`. Outside a transaction partial success is possible (documented and tested); inside a
+7. **Writes as raw commands (revised 2026-10-21).** `insert`, `update` and `delete` are issued as server commands
+   through `IMongoDatabase.RunCommandAsync` rather than the collection write API, which offers no server-side time
+   limit and wraps caller-serialized documents twice. Every write carries `maxTimeMS` (the server enforces the
+   operation timeout; the client deadline fires a grace period later as a backstop). Bulk inserts are framed by hand
+   into the driver's pooled chunk buffers (`MultiChunkBuffer`/`BsonChunkPool`) with the generated serializer, split at
+   16 MiB and 100,000 documents, with no per-document wrapper or write-model objects. Write and write-concern errors
+   become `MongoWriteCommandException` (indexes across the whole sequence, codes; server text kept separately because
+   it can contain key values). Sessions pass through, so transactions apply; nothing is retried.
+8. **Bulk semantics.** Ordered. Outside a transaction partial success is possible (documented and tested); inside a
    transaction nothing commits on failure.
 
 ## Consequences
 
 - 79 integration tests (mongo:8 single-node replica set) and 104 generator/diagnostic/parser tests pass.
-- Reads are at parity with the raw driver (about −10% allocation on buffered/streamed reads); bulk insert is about 5%
-  slower and allocates about 13% more because the driver wraps VelQuery's document wrapper again.
-- Writes get only a client-side deadline (the driver exposes no public server-side write time limit); on expiry the
-  write may still have been applied.
+- Reads are at parity with the raw driver (about −10% allocation on buffered/streamed reads).
+- Bulk insert of 1M documents: 1.24 s, 0.45 s client CPU, 137 MB allocated, versus 1.89 s, 1.01 s and 505 MB for the
+  driver's typed `InsertMany` (34% faster, 55% less CPU, 73% less allocation; local mongo:8).
+- Writes are stopped by the server at their time limit (MaxTimeMSExpired → `VelQueryTimeoutException`); work completed
+  before the limit (for example earlier batches outside a transaction) stays applied.
 - Early stream exit kills the server cursor synchronously (`AsyncCursor.CloseAsync` is internal).
 - MongoDB.Driver is not Native AOT compatible, whatever VelQuery's own annotations say.
 
@@ -55,7 +64,7 @@ carry over to a document database without depending on `VelQuery.Core` (ADO.NET)
 
 ## Open questions
 
-- Server-side write time limits once the driver exposes client-side operation timeouts (CSOT) publicly.
+- *Resolved 2026-10-21:* server-side write time limits (raw commands with `maxTimeMS`).
 - Asynchronous cursor kill on early exit.
 - Naming conventions (camelCase), more scalar types (float, short, DateTimeOffset, DateOnly), polymorphism,
   `IAsyncEnumerable<T>` bulk sources, placeholders inside `$lookup`/`$unionWith`/`$facet` sub-pipelines.

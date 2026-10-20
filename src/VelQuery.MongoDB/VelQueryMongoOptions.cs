@@ -13,8 +13,9 @@ public sealed class VelQueryMongoOptions
     public TimeSpan? DefaultTimeout { get; set; }
 
     /// <summary>
-    /// Extra time the client waits beyond a read's server-side <c>maxTimeMS</c> before cancelling locally, so the server
-    /// normally stops the operation first and reports a clean timeout. Defaults to one second.
+    /// Extra time the client waits beyond an operation's server-side <c>maxTimeMS</c> (reads and writes) before
+    /// cancelling locally, so the server normally stops the operation first and reports a definite timeout. Defaults to
+    /// one second.
     /// </summary>
     public TimeSpan ClientDeadlineGrace { get; set; } = TimeSpan.FromSeconds(1);
 

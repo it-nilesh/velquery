@@ -153,8 +153,8 @@ Testcontainers, and `tests/VelQuery.MongoDB.Generators.Tests` (104 tests), macOS
 | No global serializer registration | Verified | `BsonClassMap.IsClassMapRegistered` stays false |
 | Transactions (commit, dispose → abort, guard, caller-owned session) | Verified | Requires a replica set or sharded cluster |
 | Streaming with early exit; connection hygiene | Verified | Server cursors return to baseline |
-| Timeouts | Verified (reads) | Reads: server `maxTimeMS` (+ client deadline for buffered); writes: client deadline only |
-| Bulk insert (ordered `BulkWrite`) | Verified | Not all-or-nothing outside a transaction (earlier documents stay); nothing commits inside one. 1M docs ≈ 2.08 s vs 1.99 s raw driver |
+| Timeouts | Verified | Server-side `maxTimeMS` on reads and on the `insert`/`update`/`delete` commands; client deadline one grace period later as a backstop |
+| Bulk insert (ordered `insert` commands) | Verified | Built into pooled buffers with the generated serializer, split at 16 MiB / 100,000 documents. Not all-or-nothing outside a transaction (earlier documents stay); nothing commits inside one. 1M docs ≈ 1.24 s vs 1.89 s raw driver `InsertMany` |
 | Retries | Verified | Off on VelQuery-created clients unless the connection string enables them; application-owned clients keep their settings |
 | Native AOT | Unsupported | MongoDB.Driver is not AOT-safe |
 

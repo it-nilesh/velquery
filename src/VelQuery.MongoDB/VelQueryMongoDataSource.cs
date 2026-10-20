@@ -17,8 +17,8 @@ namespace VelQuery.MongoDB;
 /// client keeps the application's settings (MongoDB.Driver enables retryable reads and writes by default). Independent
 /// of these settings, the driver retries <c>commitTransaction</c>/<c>abortTransaction</c> once, as the MongoDB
 /// transactions specification requires; the server makes these commands idempotent.</para>
-/// <para>Collections are opened with <c>AssignIdOnInsert = false</c>: VelQuery never mutates the documents you insert.
-/// An <c>ObjectId</c> <c>_id</c> left as <see cref="ObjectId.Empty"/> is omitted and assigned by the server.</para>
+/// <para>Inserts are serialized by the generated serializer, so VelQuery never mutates the documents you insert. An
+/// <c>ObjectId</c> <c>_id</c> left as <see cref="ObjectId.Empty"/> is omitted and assigned by the server.</para>
 /// </remarks>
 public sealed class VelQueryMongoDataSource : IDisposable
 {
@@ -147,6 +147,6 @@ public sealed class VelQueryMongoDataSource : IDisposable
         // Collection objects are immutable, thread-safe driver configuration (no connection, command or cursor), so
         // caching them per name is caching immutable data (AGENTS rule 7). Names come from compile-time contracts.
         return _collections.GetOrAdd(name, static (n, database) =>
-            database.GetCollection<BsonDocument>(n, new MongoCollectionSettings { AssignIdOnInsert = false }), Database);
+            database.GetCollection<BsonDocument>(n), Database);
     }
 }

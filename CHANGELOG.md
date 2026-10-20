@@ -21,6 +21,10 @@ versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor versi
   `[VelQuerySql(Dialect = ...)]`) for SQL Server, PostgreSQL, MySQL, SQLite and generic SQL; diagnostics VQ1022
   (unbound placeholder style), VQ1023 (inconsistent placeholder casing) and VQ1024 (unknown dialect).
 - `IVelQueryProvider.RegisterCancellation`: SQLite cancellation now interrupts running statements (`sqlite3_interrupt`).
+- MongoDB writes run as raw `insert`/`update`/`delete` commands: server-side `maxTimeMS` on every write, and bulk
+  inserts built into pooled buffers (1M documents 34% faster than the driver's `InsertMany`, 73% less allocation).
+  Write errors surface as `MongoWriteCommandException` (replaces the driver's `MongoBulkWriteException`/`MongoWriteException`
+  as the inner exception).
 
 ### Security
 - Pinned `System.Security.Cryptography.Pkcs` 9.0.21 (CVE-2026-84008) for the Microsoft.Data.SqlClient dependency.

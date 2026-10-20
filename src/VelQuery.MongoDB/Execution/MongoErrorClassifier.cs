@@ -9,7 +9,7 @@ namespace VelQuery.MongoDB;
 /// <summary>
 /// Applies VelQuery's error contract (VQ-FR-026) to MongoDB.Driver failures (ADR-0016). Exceptions from the driver are
 /// wrapped in <see cref="VelQueryProviderException"/> with the original as the inner exception, so server error codes
-/// (for example duplicate key 11000 on <see cref="MongoWriteException"/> or <see cref="MongoBulkWriteException"/>) and
+/// (for example duplicate key 11000 on <see cref="MongoWriteCommandException"/>) and
 /// error labels stay inspectable while VelQuery's own message carries no document or parameter values.
 /// </summary>
 public sealed class MongoErrorClassifier : IVelQueryErrorClassifier
@@ -32,6 +32,7 @@ public sealed class MongoErrorClassifier : IVelQueryErrorClassifier
         // server code through a plain MongoCommandException.
         MongoExecutionTimeoutException => ProviderErrorKind.Timeout,
         MongoCommandException { Code: MaxTimeMSExpired or ExceededTimeLimit } => ProviderErrorKind.Timeout,
+        MongoWriteCommandException { Code: MaxTimeMSExpired or ExceededTimeLimit } => ProviderErrorKind.Timeout,
 
         // Server selection and connection-pool wait timeouts are reported by the driver as System.TimeoutException.
         TimeoutException => ProviderErrorKind.Timeout,

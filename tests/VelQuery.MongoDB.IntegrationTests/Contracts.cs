@@ -430,3 +430,36 @@ public static partial class DeleteByOwner
 {
     public static partial Task<long> ExecuteAsync(VelQueryMongoSession session, string owner, CancellationToken cancellationToken);
 }
+
+// ---- Write commands: server-side time limits and batching ----
+
+/// <summary>Same expensive per-document $expr as SlowFind, but it can never match, so nothing changes even untimed.</summary>
+[VelQueryMongoUpdate("big.slow.update", "big",
+    """{ "$expr": { "$gt": [ { "$size": { "$range": [ 0, { "$add": [ 20000, { "$multiply": [ "$_id", 0 ] } ] } ] } }, @threshold ] } }""",
+    """{ "$set": { "Touched": true } }""", Many = true, TimeoutMilliseconds = 300)]
+public static partial class SlowUpdate
+{
+    public static partial Task<VelQueryMongoUpdateResult> ExecuteAsync(VelQueryMongoSession session, int threshold, CancellationToken cancellationToken);
+}
+
+[VelQueryMongoDelete("big.slow.delete", "big",
+    """{ "$expr": { "$gt": [ { "$size": { "$range": [ 0, { "$add": [ 20000, { "$multiply": [ "$_id", 0 ] } ] } ] } }, @threshold ] } }""",
+    Many = true, TimeoutMilliseconds = 300)]
+public static partial class SlowDelete
+{
+    public static partial Task<long> ExecuteAsync(VelQueryMongoSession session, int threshold, CancellationToken cancellationToken);
+}
+
+public sealed record Blob(int Id, string Payload);
+
+[VelQueryMongoInsert("blobs.insertMany", "blobs")]
+public static partial class InsertBlobs
+{
+    public static partial Task<long> ExecuteAsync(VelQueryMongoSession session, IEnumerable<Blob> blobs, CancellationToken cancellationToken);
+}
+
+[VelQueryMongoCount("blobs.count", "blobs", """{ }""")]
+public static partial class CountBlobs
+{
+    public static partial Task<long> ExecuteAsync(VelQueryMongoSession session, CancellationToken cancellationToken);
+}

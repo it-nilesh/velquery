@@ -18,11 +18,12 @@ namespace VelQuery.MongoDB;
 /// <para><b>Overlap.</b> While operations share a driver session (transaction or application session), overlapping
 /// operations, including open streams, fail fast with <see cref="VelQueryValidationException"/> (<see cref="SessionGuard"/>).</para>
 /// <para><b>Time limits.</b> A contract's <c>TimeoutMilliseconds</c>, or <see cref="VelQueryMongoOptions.DefaultTimeout"/>,
-/// becomes the server-side <c>maxTimeMS</c> of finds, counts and aggregations, plus a client-side deadline
-/// (<see cref="VelQueryMongoOptions.ClientDeadlineGrace"/> later) for buffered reads. Streams get only the server-side
-/// limit, which counts server work rather than the time the consumer spends between items. Writes have no server-side
-/// limit in MongoDB.Driver's public API, so they get only the client-side deadline; when it fires the write may still
-/// have been applied. Either kind of expiry raises <see cref="VelQueryTimeoutException"/>.</para>
+/// becomes the server-side <c>maxTimeMS</c> of finds, counts, aggregations and the <c>insert</c>/<c>update</c>/<c>delete</c>
+/// write commands, plus a client-side deadline (<see cref="VelQueryMongoOptions.ClientDeadlineGrace"/> later) as a
+/// backstop for an unresponsive server. Streams get only the server-side limit, which counts server work rather than
+/// the time the consumer spends between items. When the server stops a write at its limit, documents written before
+/// that point (for example earlier batches of a bulk insert outside a transaction) stay written. Either kind of expiry
+/// raises <see cref="VelQueryTimeoutException"/>.</para>
 /// <para><b>Errors.</b> Driver failures become <see cref="VelQueryProviderException"/> with the driver exception as
 /// <see cref="Exception.InnerException"/> (so codes such as duplicate key 11000 stay inspectable); mapping failures are
 /// <see cref="VelQueryMappingException"/>; caller cancellation is <see cref="OperationCanceledException"/>. Nothing is
@@ -155,11 +156,12 @@ public sealed partial class VelQueryMongoSession : IAsyncDisposable, IDisposable
             if (limit is { } value && kind != OperationKind.Stream)
             {
                 deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                deadline.CancelAfter(kind == OperationKind.Read ? value + _dataSource.Options.ClientDeadlineGrace : value);
+                // The server enforces the limit (maxTimeMS on reads and write commands); the client deadline is a
+                // backstop for an unresponsive server, so it fires a grace period later.
+                deadline.CancelAfter(value + _dataSource.Options.ClientDeadlineGrace);
             }
 
-            return new Operation(session is null ? null : _guard, session, deadline, kind == OperationKind.Write ? null : limit,
-                deadline?.Token ?? cancellationToken);
+            return new Operation(session is null ? null : _guard, session, deadline, limit, deadline?.Token ?? cancellationToken);
         }
         catch
         {

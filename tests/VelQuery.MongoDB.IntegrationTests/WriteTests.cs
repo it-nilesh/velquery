@@ -68,9 +68,10 @@ public sealed class WriteTests(MongoFixture fixture) : IntegrationTest(fixture),
         var error = await Assert.ThrowsAsync<VelQueryProviderException>(() => InsertAccount.ExecuteAsync(session, new Account(1, "secret-owner-name", 1m), Ct));
         Assert.Equal("accounts.insert", error.QueryId);
         Assert.Equal(VelQueryErrorCategory.Provider, error.Category);
-        var write = Assert.IsType<MongoWriteException>(error.InnerException);
-        Assert.Equal(ServerErrorCategory.DuplicateKey, write.WriteError.Category);
-        Assert.Equal(11000, write.WriteError.Code);
+        var write = Assert.IsType<MongoWriteCommandException>(error.InnerException);
+        Assert.True(write.IsDuplicateKey);
+        Assert.Equal(11000, write.Code);
+        Assert.Equal(0, write.WriteErrors[0].Index);
 
         // VelQuery's own message carries no values (the driver's inner message is the driver's business).
         Assert.DoesNotContain("secret-owner-name", error.Message, StringComparison.Ordinal);

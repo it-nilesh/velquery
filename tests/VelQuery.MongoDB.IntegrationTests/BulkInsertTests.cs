@@ -44,13 +44,13 @@ public sealed class BulkInsertTests(MongoFixture fixture) : IntegrationTest(fixt
     {
         await using var session = Session();
         var error = await Assert.ThrowsAsync<VelQueryProviderException>(() => InsertAccounts.ExecuteAsync(session, AccountsWithDuplicateAt(10, 6), Ct));
-        var bulk = Assert.IsType<MongoBulkWriteException<BsonDocument>>(error.InnerException);
-        var writeError = Assert.Single(bulk.WriteErrors);
+        var write = Assert.IsType<MongoWriteCommandException>(error.InnerException);
+        var writeError = Assert.Single(write.WriteErrors);
         Assert.Equal(11000, writeError.Code);
-        Assert.Equal(ServerErrorCategory.DuplicateKey, writeError.Category);
+        Assert.True(write.IsDuplicateKey);
         Assert.Equal(5, writeError.Index);
-        Assert.Equal(5, bulk.Result.InsertedCount);
-        Assert.Equal(4, bulk.UnprocessedRequests.Count); // Ordered: nothing after the failure was attempted.
+        Assert.Equal(5, write.Count); // Ordered: nothing after the failure was attempted.
+        Assert.DoesNotContain("owner", write.Message, StringComparison.Ordinal);
 
         await using var check = Session();
         Assert.Equal(new[] { 1, 2, 3, 4, 5 }, (await AllAccounts.ExecuteAsync(check, Ct)).Select(a => a.Id).ToArray());
@@ -63,7 +63,7 @@ public sealed class BulkInsertTests(MongoFixture fixture) : IntegrationTest(fixt
         {
             await using var transaction = await session.BeginTransactionAsync(cancellationToken: Ct);
             var error = await Assert.ThrowsAsync<VelQueryProviderException>(() => InsertAccounts.ExecuteAsync(session, AccountsWithDuplicateAt(10, 6), Ct));
-            Assert.IsType<MongoBulkWriteException<BsonDocument>>(error.InnerException);
+            Assert.IsType<MongoWriteCommandException>(error.InnerException);
 
             // The server aborted the transaction on the write error; committing is refused.
             await Assert.ThrowsAsync<VelQueryTransactionException>(() => transaction.CommitAsync(Ct));

@@ -80,7 +80,7 @@ comparing libraries on identical work, not as absolute numbers. Raw results and 
 | PostgreSQL | 0.60 s | 0.58 s (binary COPY) | ~4 min |
 | MySQL 8.4 | 1.29 s | 1.32 s (MySqlBulkCopy) | ~15 min |
 | SQLite | 0.71 s | 0.71 s (prepared INSERT in one transaction) | 3–11 min |
-| MongoDB 8 | 2.08 s | 1.99 s (driver BulkWrite) — about 5% slower | — |
+| MongoDB 8 | 1.24 s | 1.89 s (driver InsertMany) | — |
 
 EF Core is not benchmarked yet; no claims are made about it.
 

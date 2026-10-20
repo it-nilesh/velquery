@@ -49,7 +49,7 @@ No database is **Verified** yet: CI does not exist yet (phase 1 work item).
 
 | Type | Database | Status | Candidate driver | Query surface |
 |---|---|---|---|---|
-| Document | **MongoDB** 8 | **Preview** | MongoDB.Driver 3.12 (`VelQuery.MongoDB`) | Typed find/count/aggregate/update/delete/insert contracts with VQ2xxx build-time checks (JSON, placeholders, NoSQL-injection rules); generated reflection-free BSON serializers; transactions via driver sessions; ordered bulk insert (not atomic outside a transaction). 79 integration tests pass locally on a mongo:8 replica set. Gaps: client-side write timeouts only; driver retries commit/abort once; driver not AOT-safe. ADR-0019 |
+| Document | **MongoDB** 8 | **Preview** | MongoDB.Driver 3.12 (`VelQuery.MongoDB`) | Typed find/count/aggregate/update/delete/insert contracts with VQ2xxx build-time checks (JSON, placeholders, NoSQL-injection rules); generated reflection-free BSON serializers; transactions via driver sessions; ordered bulk insert (not atomic outside a transaction), 34% faster than the driver's InsertMany; server-side time limits on reads and writes. 85 integration tests pass locally on a mongo:8 replica set. Gaps: driver retries commit/abort once; driver not AOT-safe. ADR-0019 |
 | Document | Azure Cosmos DB (NoSQL API) | Planned (phase 4) | Microsoft.Azure.Cosmos | Cosmos SQL-like queries |
 | Document | Couchbase | Planned (phase 4) | Couchbase .NET SDK | SQL++ (N1QL) |
 | Document | RavenDB | By demand | RavenDB.Client | RQL |
