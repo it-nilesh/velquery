@@ -107,6 +107,7 @@ dotnet test --solution VelQuery.slnx     # integration tests need Docker (SQL Se
 - Compiler diagnostics: [VQ1xxx reference](docs/diagnostics.md)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) and conventions in [AGENTS.md](AGENTS.md)
 - Security: [SECURITY.md](SECURITY.md); changes: [CHANGELOG.md](CHANGELOG.md)
+- Reports: [status, performance, quality and security](docs/reports/README.md)
 
 ## License
 
