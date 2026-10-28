@@ -101,14 +101,29 @@ internal sealed class SchemaChecker
             return Note(input, $"the schema snapshot is for {SqlDialects.DisplayName(catalog.Dialect)}, but the query uses the {SqlDialects.DisplayName(input.Dialect)} dialect");
         }
 
-        if (input.Shape is null)
+        if (input.StoredProcedure)
         {
-            return input.SkipReason is null ? EquatableArray<DiagnosticInfo>.Empty : Note(input, input.SkipReason);
+            return Note(input, "stored procedures are not checked");
         }
 
-        var checker = new SchemaChecker(input, input.Shape, catalog);
-        checker.Run();
-        return checker._diagnostics.ToEquatableArray();
+        try
+        {
+            var shape = QueryShapeBuilder.Build(input.Sql, input.Dialect, input.Map, input.SqlLocation, out var reason);
+            if (shape is null)
+            {
+                return reason is null ? EquatableArray<DiagnosticInfo>.Empty : Note(input, reason);
+            }
+
+            var checker = new SchemaChecker(input, shape, catalog);
+            checker.Run();
+            return checker._diagnostics.ToEquatableArray();
+        }
+#pragma warning disable CA1031 // The checks are best-effort: a defect in them must cost one check, never the build.
+        catch (Exception ex) when (ex is not OperationCanceledException)
+#pragma warning restore CA1031
+        {
+            return Note(input, $"the SQL could not be analyzed ({ex.GetType().Name}); please report this issue");
+        }
     }
 
     private static EquatableArray<DiagnosticInfo> Note(SchemaCheckInput input, string reason)
@@ -168,8 +183,16 @@ internal sealed class SchemaChecker
         var (status, column, searched, candidates) = Resolve(scope, reference);
         if (status == Status.Missing)
         {
-            var where = searched.Count == 0 ? string.Empty : $" in {string.Join(", ", searched.Select(n => "'" + n + "'"))}";
-            Report(Descriptors.NotInSnapshot, reference.Location, $"column '{reference.Display}'{where}", Suggest(reference.Column.Text, candidates));
+            // An unqualified, unquoted name may be a keyword or niladic function this recognizer does not know
+            // (UTC_TIMESTAMP, GLOB, ...), so it is reported only when it is certainly a column (a written column) or
+            // looks like a misspelling of one. Qualified (t.col) and quoted names are always columns.
+            var suggestion = Suggest(reference.Column.Text, candidates);
+            var certain = reference.Parts.Count > 1 || reference.Column.Quoted || reference.Write || suggestion.Length > 0;
+            if (certain)
+            {
+                var where = searched.Count == 0 ? string.Empty : $" in {string.Join(", ", searched.Select(n => "'" + n + "'"))}";
+                Report(Descriptors.NotInSnapshot, reference.Location, $"column '{reference.Display}'{where}", suggestion);
+            }
         }
         else if (status == Status.Found && reference.Write && column!.Generated)
         {
@@ -184,6 +207,11 @@ internal sealed class SchemaChecker
         var parts = reference.Parts;
         var unknown = (Status.Unknown, (ColumnInfo?)null, searched, candidates);
         var name = reference.Column;
+        if (!name.Quoted && SqlKeywords.SystemColumns.Contains(name.Text))
+        {
+            return unknown; // rowid, ctid, xmin: real columns the catalog does not list.
+        }
+
         if (parts.Count == 1)
         {
             if (reference.Target >= 0)
@@ -408,9 +436,12 @@ internal sealed class SchemaChecker
             switch (output.Kind)
             {
                 case OutputKind.Star:
+                    // USING and NATURAL joins return each shared column once, not once per side.
+                    var expanded = new Dictionary<string, int>(_catalog.Snapshot.CaseSensitiveColumns ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase);
                     for (var k = 0; k < block.Sources.Count; k++)
                     {
-                        if (block.Sources[k].Pseudo)
+                        var source = block.Sources[k];
+                        if (source.Pseudo)
                         {
                             continue;
                         }
@@ -421,7 +452,22 @@ internal sealed class SchemaChecker
                             return null;
                         }
 
-                        outputs.AddRange(columns.Select(c => new OutputInfo(c.Name, c.DbType, c.Nullable, c.Name)));
+                        foreach (var c in columns)
+                        {
+                            var shared = source.Natural
+                                ? expanded.ContainsKey(c.Name)
+                                : source.Using.Any(u => _catalog.SameColumnName(u, c.Name));
+                            if (!shared)
+                            {
+                                expanded[c.Name] = outputs.Count;
+                                outputs.Add(new OutputInfo(c.Name, c.DbType, c.Nullable, c.Name));
+                            }
+                            else if (expanded.TryGetValue(c.Name, out var first) && (outputs[first].Nullable != false || c.Nullable != false))
+                            {
+                                // The database merges both sides (COALESCE for outer joins): nullability is not known.
+                                outputs[first] = outputs[first] with { Nullable = null };
+                            }
+                        }
                     }
 
                     break;
@@ -604,11 +650,16 @@ internal sealed class SchemaChecker
     {
         string? best = null;
         var bestDistance = int.MaxValue;
+        var lower = name.ToLowerInvariant();
         var limit = Math.Max(1, Math.Min(3, name.Length / 3));
         foreach (var candidate in candidates.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(c => c, StringComparer.Ordinal))
         {
-            var distance = Distance(name.ToLowerInvariant(), candidate.ToLowerInvariant());
-            if (distance <= limit && distance < bestDistance)
+            var other = candidate.ToLowerInvariant();
+
+            // A truncated name ("Stat" for "Status") is close too: up to three missing trailing characters.
+            var truncated = lower.Length >= 3 && other.Length - lower.Length is > 0 and <= 3 && other.StartsWith(lower, StringComparison.Ordinal);
+            var distance = truncated ? other.Length - lower.Length : Distance(lower, other);
+            if ((truncated || distance <= limit) && distance < bestDistance)
             {
                 best = candidate;
                 bestDistance = distance;

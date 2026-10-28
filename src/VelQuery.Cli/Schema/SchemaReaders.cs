@@ -62,9 +62,10 @@ internal static class SchemaReaders
         var collation = (string?)await ScalarAsync(connection, "SELECT CONVERT(nvarchar(128), DATABASEPROPERTYEX(DB_NAME(), 'Collation'))", cancellationToken).ConfigureAwait(false) ?? string.Empty;
         var caseSensitive = collation.Contains("_CS", StringComparison.OrdinalIgnoreCase) || collation.Contains("_BIN", StringComparison.OrdinalIgnoreCase);
 
-        // TYPE_NAME(system_type_id) resolves alias types to their base type; rowversion reports as 'timestamp'.
+        // TYPE_NAME(system_type_id) resolves alias types to their base type; rowversion reports as 'timestamp'. CLR
+        // types (geography, geometry, hierarchyid) share system_type_id 240, which names no type: use the column's own.
         const string Sql = """
-            SELECT s.name, o.name, o.type, c.name, TYPE_NAME(c.system_type_id), c.max_length, c.precision, c.scale,
+            SELECT s.name, o.name, o.type, c.name, COALESCE(TYPE_NAME(c.system_type_id), TYPE_NAME(c.user_type_id)), c.max_length, c.precision, c.scale,
                    c.is_nullable, c.is_identity, c.is_computed, CAST(CASE WHEN c.default_object_id <> 0 THEN 1 ELSE 0 END AS bit)
             FROM sys.objects o
             JOIN sys.schemas s ON s.schema_id = o.schema_id
@@ -113,12 +114,21 @@ internal static class SchemaReaders
                    CASE WHEN c.data_type IN ('ARRAY', 'USER-DEFINED') THEN c.udt_name ELSE c.data_type END,
                    c.character_maximum_length, c.numeric_precision, c.numeric_scale, c.is_nullable,
                    c.column_default IS NOT NULL OR c.is_identity = 'YES',
-                   COALESCE(c.is_generated = 'ALWAYS' OR c.identity_generation = 'ALWAYS', false)
+                   COALESCE(c.is_generated = 'ALWAYS' OR c.identity_generation = 'ALWAYS', false),
+                   c.ordinal_position::int
             FROM information_schema.columns c
             JOIN information_schema.tables t ON t.table_schema = c.table_schema AND t.table_name = c.table_name
             WHERE c.table_schema NOT IN ('pg_catalog', 'information_schema')
               AND c.table_schema NOT LIKE 'pg\_toast%' AND c.table_schema NOT LIKE 'pg\_temp%'
-            ORDER BY c.table_schema, c.table_name, c.ordinal_position
+            UNION ALL
+            -- information_schema omits materialized views; read them from the catalog (nullability unknown, no defaults).
+            SELECT n.nspname, cl.relname, 'MATERIALIZED VIEW', a.attname, format_type(a.atttypid, NULL),
+                   NULL::int, NULL::int, NULL::int, 'YES', false, false, a.attnum::int
+            FROM pg_class cl
+            JOIN pg_namespace n ON n.oid = cl.relnamespace
+            JOIN pg_attribute a ON a.attrelid = cl.oid AND a.attnum > 0 AND NOT a.attisdropped
+            WHERE cl.relkind = 'm' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+            ORDER BY 1, 2, 12
             """;
         var rows = new List<(string Schema, string Name, string Kind, DbColumn Column)>();
         await foreach (var r in RowsAsync(connection, Sql, cancellationToken).ConfigureAwait(false))
@@ -129,7 +139,7 @@ internal static class SchemaReaders
                 continue;
             }
 
-            var view = r.GetString(2) == "VIEW";
+            var view = r.GetString(2) is "VIEW" or "MATERIALIZED VIEW";
             var type = r.GetString(4);
             var numeric = type == "numeric";
             rows.Add((schema, r.GetString(1), view ? "view" : "table", new DbColumn(

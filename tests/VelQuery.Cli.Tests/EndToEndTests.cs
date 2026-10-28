@@ -73,6 +73,9 @@ public sealed class SqliteEndToEndTests : IDisposable
         new("cx_update_from", "UPDATE orders SET status = c.name FROM customers c WHERE c.id = orders.customer_id", "Task<int>", [], "NonQuery"),
         new("cx_delete_returning", "DELETE FROM orders WHERE id = -1 RETURNING id", "Task<IReadOnlyList<int>>", []),
         new("cx_not_exists", "SELECT id, name FROM customers c WHERE NOT EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.id AND o.status IN ('x', 'y'))", "Task<IReadOnlyList<IdName>>", []),
+        new("cx_glob_rowid", "SELECT rowid AS id, name FROM customers WHERE name GLOB 'A*' ORDER BY rowid", "Task<IReadOnlyList<IdName>>", []),
+        new("cx_natural_join", "SELECT c.id, c.name FROM customers c NATURAL JOIN customers", "Task<IReadOnlyList<IdName>>", []),
+        new("cx_temp_table_batch", "CREATE TEMP TABLE tmp AS SELECT id, name FROM customers; SELECT id, name FROM tmp", "Task<IReadOnlyList<IdName>>", []),
     ];
 
     [Fact]
@@ -137,6 +140,8 @@ public sealed class PostgreSqlEndToEndTests
         CREATE TABLE sales.regions (code char(2) PRIMARY KEY, name text NOT NULL);
         CREATE TABLE "Audit" ("Id" bigserial PRIMARY KEY, "Note" text);
         CREATE VIEW big_orders AS SELECT id, customer_id, total FROM orders WHERE total > 100;
+        CREATE TABLE order_notes (note_id int PRIMARY KEY, customer_id int NOT NULL, note text NOT NULL);
+        CREATE MATERIALIZED VIEW customer_totals AS SELECT customer_id AS id, 'c' || customer_id AS name, SUM(total) AS total FROM orders GROUP BY customer_id;
         INSERT INTO customers (name, email) VALUES ('Ann', NULL), ('Bob', 'bob@example.com');
         INSERT INTO orders (customer_id, total, status) VALUES (1, 10, 'new'), (2, 250, 'paid');
         """;
@@ -158,6 +163,10 @@ public sealed class PostgreSqlEndToEndTests
         new("cx_delete_using", "DELETE FROM orders USING customers c WHERE c.id = orders.customer_id AND c.name = @name", "Task<int>", [], "NonQuery"),
         new("cx_casts_extract", "SELECT id, name FROM customers WHERE created_at::date <= current_date OR extract(year FROM created_at) > 2000", "Task<IReadOnlyList<IdName>>", []),
         new("cx_recursive", "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n WHERE x < 5) SELECT x AS id, 'n' AS name FROM n", "Task<IReadOnlyList<IdName>>", []),
+        new("cx_materialized_view", "SELECT id, name, total FROM customer_totals", "Task<IReadOnlyList<CustomerTotal>>", []),
+        new("cx_using_star", "SELECT * FROM orders JOIN order_notes USING (customer_id)", "Task<IReadOnlyList<OrderNote>>", []),
+        new("cx_natural_star", "SELECT * FROM customers NATURAL JOIN customers c2", "Task<IReadOnlyList<CustomerRow>>", []),
+        new("cx_temp_table_batch", "CREATE TEMP TABLE tmp AS SELECT id, name FROM customers; SELECT id, name FROM tmp", "Task<IReadOnlyList<IdName>>", []),
         new("cx_overriding_identity", "INSERT INTO orders (id, customer_id, total, status) OVERRIDING SYSTEM VALUE VALUES (100, @id, @total, @status)", "Task<int>", [], "NonQuery"),
         new("cx_right_join", "SELECT o.id, c.name FROM orders o RIGHT JOIN customers c ON c.id = o.customer_id", "Task<IReadOnlyList<IdName>>", ["VQ1026"]),
         new("cx_full_join", "SELECT c.id, c.name FROM customers c FULL JOIN orders o ON o.customer_id = c.id", "Task<IReadOnlyList<IdName>>", ["VQ1026", "VQ1026"]),
@@ -206,7 +215,7 @@ public sealed class PostgreSqlEndToEndTests
         ];
 
         cases = [.. cases, .. Complex];
-        await SchemaScenario.RunAsync("postgresql", schema, Values.Rows + "public sealed record AuditRow(long Id, string? Note);\n", cases, async () =>
+        await SchemaScenario.RunAsync("postgresql", schema, Values.Rows + "public sealed record AuditRow(long Id, string? Note);\npublic sealed record OrderNote(int Customer_Id, int Id, decimal Total, string Status, string Note);\n", cases, async () =>
         {
             var connection = new NpgsqlConnection(connectionString);
             await connection.OpenAsync();
@@ -241,6 +250,9 @@ public sealed class MySqlEndToEndTests
         new("cx_replace", "REPLACE INTO customers (id, name, email) VALUES (@id, @name, @email)", "Task<int>", [], "NonQuery"),
         new("cx_insert_ignore", "INSERT IGNORE INTO customers (id, name) VALUES (@id, @name)", "Task<int>", [], "NonQuery"),
         new("cx_delete_join", "DELETE o FROM orders o JOIN customers c ON c.id = o.customer_id WHERE c.email IS NULL", "Task<int>", [], "NonQuery"),
+        new("cx_utc_sounds_like", "SELECT id, name FROM customers WHERE created_at < UTC_TIMESTAMP AND name SOUNDS LIKE 'Anne' OR CURDATE() IS NOT NULL", "Task<IReadOnlyList<IdName>>", []),
+        new("cx_using", "SELECT c.id, c.name FROM customers c JOIN orders o USING (id)", "Task<IReadOnlyList<IdName>>", []),
+        new("cx_temp_table_batch", "CREATE TEMPORARY TABLE tmp AS SELECT id, name FROM customers; SELECT id, name FROM tmp", "Task<IReadOnlyList<IdName>>", []),
         new("cx_json", "SELECT id, name FROM customers WHERE JSON_EXTRACT('{\"a\": 1}', '$.a') = 1", "Task<IReadOnlyList<IdName>>", []),
         new("cx_right_join", "SELECT o.id, c.name FROM orders o RIGHT JOIN customers c ON c.id = o.customer_id", "Task<IReadOnlyList<IdName>>", ["VQ1026"]),
     ];
@@ -299,7 +311,7 @@ public sealed class SqlServerEndToEndTests
     [
         """
         CREATE TABLE dbo.Customers (Id int IDENTITY PRIMARY KEY, Name nvarchar(100) NOT NULL, Email nvarchar(200) NULL,
-            CreatedAt datetime2 NOT NULL DEFAULT SYSUTCDATETIME(), Version rowversion);
+            CreatedAt datetime2 NOT NULL DEFAULT SYSUTCDATETIME(), Version rowversion, Location geography NULL, Node hierarchyid NULL);
         CREATE TABLE dbo.Orders (Id int IDENTITY PRIMARY KEY, CustomerId int NOT NULL REFERENCES dbo.Customers(Id),
             Total decimal(10,2) NOT NULL, Status nvarchar(20) NOT NULL, ShippedAt datetime2 NULL, TotalWithTax AS (Total * 1.2));
         INSERT INTO dbo.Customers (Name, Email) VALUES (N'Ann', NULL), (N'Bob', N'bob@example.com');
@@ -327,6 +339,7 @@ public sealed class SqlServerEndToEndTests
         new("cx_delete_output", "DELETE FROM Orders OUTPUT DELETED.Id WHERE Id = -1", "Task<IReadOnlyList<int>>", []),
         new("cx_temp_table_batch", "SELECT Id INTO #t FROM Customers; SELECT t.Id, c.Name FROM #t t JOIN Customers c ON c.Id = t.Id", "Task<IReadOnlyList<IdName>>", []),
         new("cx_declare_batch", "DECLARE @since datetime2 = DATEADD(day, -1, SYSUTCDATETIME()); SELECT Id, Name FROM Customers WHERE CreatedAt >= @since OR Id = @id", "Task<IReadOnlyList<IdName>>", []),
+        new("cx_select_into_table", "SELECT Id, Name INTO Staging FROM Customers; SELECT s.Id, s.Name FROM Staging s", "Task<IReadOnlyList<IdName>>", []),
         new("cx_set_batch", "SET NOCOUNT ON; SELECT Id, Name FROM Customers WHERE Id >= @id", "Task<IReadOnlyList<IdName>>", []),
         new("cx_merge", "MERGE Customers AS t USING (SELECT 1 AS Id) AS s ON t.Id = s.Id WHEN MATCHED THEN UPDATE SET t.Name = t.Name;", "Task<int>", ["VQ1011"], "NonQuery"),
         new("cx_right_join", "SELECT o.Id, c.Name FROM Orders o RIGHT JOIN Customers c ON c.Id = o.CustomerId", "Task<IReadOnlyList<IdName>>", ["VQ1026"]),
@@ -365,7 +378,8 @@ public sealed class SqlServerEndToEndTests
         Assert.Equal("dbo", schema.DefaultSchema);
         var customers = Assert.Single(schema.Objects, o => o.Name == "Customers");
         Assert.Equal(100, customers.Columns[1].MaxLength);
-        Assert.True(customers.Columns[^1].Generated); // rowversion
+        Assert.True(customers.Columns[^3].Generated); // rowversion
+        Assert.Equal(["geography", "hierarchyid"], customers.Columns.TakeLast(2).Select(c => c.DbType)); // CLR types
         Assert.True(Assert.Single(schema.Objects, o => o.Name == "Orders").Columns[^1].Generated); // computed
 
         QueryCase[] cases =

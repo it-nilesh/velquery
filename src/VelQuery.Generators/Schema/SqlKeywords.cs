@@ -3,13 +3,18 @@ using System.Collections.Generic;
 
 namespace VelQuery.Generators.Schema;
 
-/// <summary>Word lists for the shape builder. Being incomplete only ever makes a check skip, never fire.</summary>
+/// <summary>
+/// Word lists for the shape builder. They cannot be complete (every dialect adds keywords and niladic functions), so
+/// the checker never trusts them alone: an unqualified, unquoted unknown name is reported only when it is written to
+/// or looks like a misspelling of a real column (SchemaChecker.CheckReference).
+/// </summary>
 internal static class SqlKeywords
 {
     /// <summary>Words that are never column references inside expressions.</summary>
     public static readonly HashSet<string> Expression = Set(
         "ALL", "AND", "ANY", "ARRAY", "AS", "ASC", "ASYMMETRIC", "AT", "BETWEEN", "BINARY", "BOOLEAN", "BOTH", "BY", "CASE",
-        "CENTURY", "COLLATE", "CROSS", "CUBE", "CURRENT", "CURRENT_CATALOG", "CURRENT_DATE", "CURRENT_ROLE", "CURRENT_SCHEMA",
+        "AGAINST", "CENTURY", "COLLATE", "CURDATE", "CURTIME", "GLOB", "MATCH", "MEMBER", "OF", "SOUNDS", "SYSDATE",
+        "UTC_DATE", "UTC_TIME", "UTC_TIMESTAMP", "ROWNUM", "CURRENT_TIMEZONE", "SYSTEM_TIME", "CROSS", "CUBE", "CURRENT", "CURRENT_CATALOG", "CURRENT_DATE", "CURRENT_ROLE", "CURRENT_SCHEMA",
         "CURRENT_TIME", "CURRENT_TIMESTAMP", "CURRENT_USER", "DATE", "DAY", "DAY_HOUR", "DAY_MICROSECOND", "DAY_MINUTE",
         "DAY_SECOND", "DECADE", "DEFAULT", "DESC", "DISTINCT", "DIV", "DOW", "DOY", "ELSE", "END", "EPOCH", "ESCAPE", "EXCEPT",
         "EXCLUDE", "EXISTS", "EXPANSION", "FALSE", "FETCH", "FILTER", "FIRST", "FOLLOWING", "FOR", "FROM", "FULL", "GROUP",
@@ -23,6 +28,9 @@ internal static class SqlKeywords
         "SIMILAR", "SOME", "SYMMETRIC", "SYSTEM_USER", "THEN", "TIES", "TIME", "TIMESTAMP", "TIMEZONE", "TIMEZONE_HOUR",
         "TIMEZONE_MINUTE", "TO", "TOP", "TRAILING", "TRUE", "UNBOUNDED", "UNION", "UNKNOWN", "USER", "USING", "VALUE", "VARYING",
         "WEEK", "WHEN", "WHERE", "WITH", "WITHIN", "WITHOUT", "XOR", "YEAR", "YEAR_MONTH", "ZONE");
+
+    /// <summary>Hidden system columns that are valid in queries but never listed in a catalog.</summary>
+    public static readonly HashSet<string> SystemColumns = Set("ROWID", "OID", "_ROWID_", "CTID", "XMIN", "XMAX", "CMIN", "CMAX", "TABLEOID");
 
     /// <summary>Words that may continue a type name after <c>::</c> (<c>double precision</c>, <c>timestamp with time zone</c>).</summary>
     public static readonly HashSet<string> TypeContinuation = Set("PRECISION", "VARYING", "WITH", "WITHOUT", "TIME", "ZONE", "LOCAL");

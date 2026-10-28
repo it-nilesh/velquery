@@ -56,6 +56,10 @@ public sealed class SchemaSnapshotTests
               { "name": "price", "dbType": "numeric", "nullable": false },
               { "name": "created_at", "dbType": "timestamp with time zone", "nullable": false, "hasDefault": true }
             ] },
+            { "schema": "public", "name": "stock", "kind": "table", "columns": [
+              { "name": "id", "dbType": "integer", "nullable": false },
+              { "name": "qty", "dbType": "integer", "nullable": false }
+            ] },
             { "schema": "public", "name": "Audit", "kind": "table", "columns": [
               { "name": "Id", "dbType": "bigint", "nullable": false, "generated": true },
               { "name": "Note", "dbType": "text", "nullable": true }
@@ -72,6 +76,7 @@ public sealed class SchemaSnapshotTests
         public sealed record OrderUser(int Id, string Name);
         public sealed record Product(int Id, string Name, decimal Price);
         public sealed record AuditRow(long Id, string? Note);
+        public sealed record Stocked(int Id, string Name, decimal Price, int Qty);
 
         """;
 
@@ -210,6 +215,80 @@ public sealed class SchemaSnapshotTests
             + Contract(Raw + "INSERT INTO \"Audit\" (\"Id\", \"Note\") OVERRIDING SYSTEM VALUE VALUES (1, @n) " + Raw, "Task<int>", ", string n", "G", "NonQuery")
             + Contract("\"SELECT id, name, price FROM products WHERE created_at > now() - interval '1 day' AND name ILIKE @q\"", "Task<IReadOnlyList<Product>>", ", string q", "F"));
 
+    // ---------------------------------------------------------------- code review regressions
+
+    [Fact]
+    public void Using_and_natural_joins_return_shared_columns_once()
+        => Postgres(
+            Contract("\"SELECT * FROM products JOIN stock USING (id)\"", "Task<IReadOnlyList<Stocked>>", name: "A")
+            + Contract("\"SELECT * FROM products NATURAL JOIN stock\"", "Task<IReadOnlyList<Stocked>>", name: "B")
+            + Contract("\"SELECT * FROM products LEFT JOIN stock USING (id)\"", "Task<IReadOnlyList<Stocked>>".Replace("Stocked", "Product"), name: "C"));
+
+    [Fact]
+    public void Tables_created_in_the_batch_are_not_reported()
+        => SqlServer(
+            Contract("\"SELECT Id INTO Staging FROM Users; SELECT s.Id, u.Name, u.Email FROM Staging s JOIN Users u ON u.Id = s.Id\"", name: "A")
+            + Contract("\"CREATE TABLE #x (Id bigint); CREATE TABLE dbo.Scratch (Id bigint); INSERT INTO Scratch (Id) SELECT Id FROM Users; SELECT Id FROM dbo.Scratch\"", "Task<IReadOnlyList<long>>", name: "B"))
+        ;
+
+    [Fact]
+    public void Postgres_temp_tables_created_in_the_batch_are_not_reported()
+        => Postgres(
+            Contract("\"CREATE TEMP TABLE tmp AS SELECT id, name, price FROM products; SELECT id, name, price FROM tmp\"", "Task<IReadOnlyList<Product>>", name: "A")
+            // The query inside CREATE ... AS is still checked.
+            + Contract("\"CREATE TEMP TABLE tmp2 AS SELECT id, {|VQ1005:nmae|} FROM products; SELECT id, name, price FROM tmp2\"", "Task<IReadOnlyList<Product>>", name: "B"));
+
+    [Fact]
+    public void Unknown_keywords_and_functions_are_not_reported_as_columns()
+        => SqlServer(
+            Contract("\"SELECT Id, Name, Email FROM Users WHERE CreatedAt < UTC_TIMESTAMP AND Name GLOB 'a*' AND SOME_NILADIC_THING > 0\"", name: "A")
+            + Contract("\"SELECT Id, Name, Email FROM Users WHERE Name SOUNDS LIKE 'x' ORDER BY ROWID\"", name: "B")
+            // Still reported: misspellings of real columns, quoted names, qualified names, written columns.
+            + Contract("\"SELECT Id, Name, Email FROM Users u WHERE {|VQ1005:Emial|} = '' AND {|VQ1005:[Nope]|} = 1 AND u.{|VQ1005:Nope2|} = 1\"", name: "C")
+            + Contract("\"UPDATE Users SET {|VQ1005:Whatever|} = 1\"", "Task<int>", name: "D", cardinality: "NonQuery"));
+
+    [Fact]
+    public void Postgres_system_columns_are_valid()
+        => Postgres(Contract("\"SELECT p.id, p.name, p.price FROM products p WHERE p.ctid IS NOT NULL AND xmin IS NOT NULL\"", "Task<IReadOnlyList<Product>>"));
+
+    [Fact]
+    public void The_same_snapshot_listed_twice_is_one_snapshot()
+    {
+        var messages = DiagnosticVerifier.Messages(Rows + Contract("\"SELECT Id, Name, Email FROM {|VQ1005:Userz|}\"".Replace("{|VQ1005:", "").Replace("|}", "")), null,
+            ("/p/db/shop.vqschema.json", SqlServerSnapshot), ("/p/db\\shop.vqschema.json", SqlServerSnapshot), ("/p/other/copy.vqschema.json", SqlServerSnapshot));
+        Assert.DoesNotContain(messages, m => m.StartsWith("VQ1031", System.StringComparison.Ordinal));
+        Assert.Contains(messages, m => m.StartsWith("VQ1005", System.StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void The_recognizer_never_throws_on_partial_or_malformed_sql()
+    {
+        // Every prefix of a set of valid statements: truncated SQL is what an IDE sees while the user types.
+        string[] statements =
+        [
+            "SELECT TOP (10) c.Id, c.Name, o.Total FROM dbo.Customers c WITH (NOLOCK) LEFT JOIN Orders AS o ON o.CustomerId = c.Id WHERE o.Status = @s ORDER BY o.Total DESC OFFSET 0 ROWS FETCH NEXT 5 ROWS ONLY",
+            "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n WHERE x < 5) SELECT x, (SELECT COUNT(*) FROM t WHERE t.a = n.x) AS c FROM n FOR UPDATE",
+            "INSERT INTO products AS p (id, name) OVERRIDING SYSTEM VALUE VALUES (1, @n) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name WHERE p.id > 0 RETURNING id, name",
+            "UPDATE o SET Status = @s OUTPUT INSERTED.Id FROM Orders o JOIN Customers c ON c.Id = o.CustomerId WHERE c.Name = @n",
+            "DELETE t1, t2 FROM t1 JOIN t2 USING (id) WHERE t1.x IN (SELECT y FROM z) ORDER BY t1.id LIMIT 3",
+            "SELECT * FROM ONLY products p NATURAL JOIN stock CROSS JOIN LATERAL (SELECT * FROM f(p.id)) x(a, b) TABLESAMPLE SYSTEM (10)",
+            "DECLARE @n int = CASE WHEN @p = 1 THEN 1 END, @m int; SELECT @n FOR XML PATH",
+            "MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN UPDATE SET t.x = s.x;",
+        ];
+        foreach (var dialect in new[] { VelQuery.Generators.Sql.SqlDialect.SqlServer, VelQuery.Generators.Sql.SqlDialect.PostgreSql, VelQuery.Generators.Sql.SqlDialect.MySql, VelQuery.Generators.Sql.SqlDialect.Sqlite })
+        {
+            foreach (var sql in statements)
+            {
+                for (var length = 0; length <= sql.Length; length++)
+                {
+                    var prefix = sql.Substring(0, length);
+                    var ex = Record.Exception(() => VelQuery.Generators.Schema.QueryShapeBuilder.Build(prefix, dialect, null, null, out _));
+                    Assert.True(ex is null, $"{dialect}: '{prefix}' threw {ex}");
+                }
+            }
+        }
+    }
+
     // ---------------------------------------------------------------- VQ1011 and VQ1031
 
     [Fact]
@@ -228,7 +307,7 @@ public sealed class SchemaSnapshotTests
         var invalid = DiagnosticVerifier.Messages(Rows + Contract("\"SELECT Id, Name, Email FROM Userz\""), null, ("/s.vqschema.json", "{ \"format\": "));
         Assert.Equal(["VQ1031: Schema snapshot 's.vqschema.json' is not used: it is not valid JSON (unexpected end of file at line 1)"], invalid);
 
-        var two = DiagnosticVerifier.Messages(Rows, null, ("/a.vqschema.json", SqlServerSnapshot), ("/b.vqschema.json", SqlServerSnapshot));
+        var two = DiagnosticVerifier.Messages(Rows, null, ("/a.vqschema.json", SqlServerSnapshot), ("/b.vqschema.json", SqlServerSnapshot.Replace("\"Users\"", "\"People\"")));
         Assert.Single(two, m => m.StartsWith("VQ1031", System.StringComparison.Ordinal) && m.Contains("(a.vqschema.json, b.vqschema.json)"));
 
         var format = DiagnosticVerifier.Messages(Rows, null, ("/s.vqschema.json", SqlServerSnapshot.Replace("velquery.schema.v1", "v9")));

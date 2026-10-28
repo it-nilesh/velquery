@@ -61,7 +61,7 @@ internal static class SchemaDiff
                 else if (column.MaxLength != next.MaxLength || column.Precision != next.Precision || column.Scale != next.Scale)
                 {
                     // Shrinking can truncate or reject values that were valid before; growing is safe.
-                    var shrank = next.MaxLength < column.MaxLength || next.Precision < column.Precision || next.Scale < column.Scale;
+                    var shrank = Shrank(column.MaxLength, next.MaxLength) || Shrank(column.Precision, next.Precision) || Shrank(column.Scale, next.Scale);
                     changes.Add(new SchemaChange(shrank, "size changed", target, $"{Size(column)} -> {Size(next)}"));
                 }
 
@@ -101,9 +101,24 @@ internal static class SchemaDiff
         return changes;
     }
 
+    /// <summary>
+    /// Whether a size limit got tighter. No limit (nvarchar(max), text, unconstrained numeric) becoming a limit is a
+    /// shrink too; lifted <c>int?</c> comparisons would call that "not smaller".
+    /// </summary>
+    private static bool Shrank(int? before, int? after) => after is { } now && (before is not { } then || now < then);
+
     private static string Key(DbObject obj) => (obj.Schema ?? string.Empty) + "\u0001" + obj.Name;
 
     private static string Size(DbColumn column)
-        => column.MaxLength is { } length ? length.ToString(System.Globalization.CultureInfo.InvariantCulture)
-            : $"{column.Precision?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "?"},{column.Scale?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "?"}";
+    {
+        var invariant = System.Globalization.CultureInfo.InvariantCulture;
+        if (column.MaxLength is { } length)
+        {
+            return length.ToString(invariant);
+        }
+
+        return column.Precision is null && column.Scale is null
+            ? "unbounded"
+            : $"{column.Precision?.ToString(invariant) ?? "?"},{column.Scale?.ToString(invariant) ?? "?"}";
+    }
 }

@@ -110,6 +110,20 @@ public sealed class CliTests : IDisposable
     }
 
     [Fact]
+    public void Diff_treats_unbounded_to_bounded_as_breaking_and_the_reverse_as_safe()
+    {
+        DbSchema With(int? length, int? precision) => new("sqlserver", null, "dbo", false, false,
+            [new DbObject("dbo", "T", "table", [new DbColumn("Note", "nvarchar", length, precision, null, true, false, false)])]);
+
+        var shrink = Assert.Single(SchemaDiff.Compare(With(null, null), With(50, null)));
+        Assert.True(shrink.Breaking);
+        Assert.Equal("unbounded -> 50", shrink.Detail);
+        Assert.False(Assert.Single(SchemaDiff.Compare(With(50, null), With(null, null))).Breaking);
+        Assert.True(Assert.Single(SchemaDiff.Compare(With(null, null), With(null, 10))).Breaking);
+        Assert.False(Assert.Single(SchemaDiff.Compare(With(50, null), With(100, null))).Breaking);
+    }
+
+    [Fact]
     public async Task Snapshot_check_and_diff_commands_against_sqlite()
     {
         var db = Path.Combine(_directory, "shop.db");

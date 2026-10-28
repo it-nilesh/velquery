@@ -26,6 +26,7 @@ internal sealed class QueryShapeBuilder
     private readonly List<ScopeBuilder> _scopes = [];
     private readonly List<InsertTarget> _inserts = [];
     private readonly List<string> _unsupported = [];
+    private readonly HashSet<string> _created = new(StringComparer.OrdinalIgnoreCase);
 
     private QueryShapeBuilder(List<SqlToken> tokens, int[] match, SqlDialect dialect, SqlSourceMap? map, LocationInfo? fallback)
     {
@@ -82,6 +83,7 @@ internal sealed class QueryShapeBuilder
 
     private QueryShape BuildCore()
     {
+        CollectCreatedTables();
         var result = -1;
         var start = 0;
         for (var i = 0; i <= _t.Count; i = i < _t.Count ? Next(i) : i + 1)
@@ -112,6 +114,55 @@ internal sealed class QueryShapeBuilder
     }
 
     // ------------------------------------------------------------------ statements
+
+    /// <summary>
+    /// Tables and views the batch creates itself (<c>CREATE [TEMP] TABLE t</c>, <c>CREATE VIEW v</c>,
+    /// <c>SELECT ... INTO t</c>) are not in the snapshot; references to them are unknown sources, never VQ1005.
+    /// </summary>
+    private void CollectCreatedTables()
+    {
+        var statementStart = 0;
+        for (var i = 0; i < _t.Count; i = Next(i))
+        {
+            var token = _t[i];
+            if (token.IsPunctuation(';'))
+            {
+                statementStart = i + 1;
+                continue;
+            }
+
+            var k = -1;
+            if (token.IsWord("CREATE"))
+            {
+                k = i + 1;
+                while (k < _t.Count && _t[k].Kind == SqlTokenKind.Word &&
+                       _t[k].Text.ToUpperInvariant() is "OR" or "REPLACE" or "TEMP" or "TEMPORARY" or "GLOBAL" or "LOCAL" or "UNLOGGED" or "MATERIALIZED" or "VIRTUAL" or "ALGORITHM" or "SQL" or "SECURITY")
+                {
+                    k++;
+                }
+
+                if (k >= _t.Count || !(_t[k].IsWord("TABLE") || _t[k].IsWord("VIEW")))
+                {
+                    continue;
+                }
+
+                k++;
+                if (k + 2 < _t.Count && _t[k].IsWord("IF") && _t[k + 1].IsWord("NOT") && _t[k + 2].IsWord("EXISTS"))
+                {
+                    k += 3;
+                }
+            }
+            else if (token.IsWord("INTO") && statementStart < _t.Count && (_t[statementStart].IsWord("SELECT") || _t[statementStart].IsWord("WITH")))
+            {
+                k = i + 1; // SELECT ... INTO NewTable (SQL Server); MySQL INTO @var is a parameter, not a name.
+            }
+
+            if (k >= 0 && k < _t.Count && _t[k].IsName && TryChain(k, _t.Count, out var parts, out _))
+            {
+                _created.Add(parts[parts.Count - 1].Text);
+            }
+        }
+    }
 
     private int ParseStatement(int s, int e, CteScope? ctes)
     {
@@ -145,6 +196,21 @@ internal sealed class QueryShapeBuilder
         if (first.IsWord("DELETE"))
         {
             return ParseDelete(s, e, ctes);
+        }
+
+        if (first.IsWord("CREATE"))
+        {
+            // DDL is not checked, but CREATE TABLE ... AS SELECT and CREATE VIEW ... AS SELECT read tables: check that query.
+            for (var i = s + 1; i < e; i = Next(i))
+            {
+                if (_t[i].IsWord("AS") && StartsQuery(i + 1))
+                {
+                    ParseQuery(i + 1, e, -1, ctes);
+                    break;
+                }
+            }
+
+            return -1;
         }
 
         if (first.Kind != SqlTokenKind.Word || !SqlKeywords.Ignorable.Contains(first.Text))
@@ -819,6 +885,7 @@ internal sealed class QueryShapeBuilder
         {
             var kind = JoinKind.Inner;
             var lateral = false;
+            var natural = false;
             if (!first)
             {
                 if (_t[i].IsPunctuation(','))
@@ -844,9 +911,11 @@ internal sealed class QueryShapeBuilder
                             case "OUTER" when i + 1 < e && _t[i + 1].IsWord("APPLY"):
                                 kind = JoinKind.Left;
                                 break;
+                            case "NATURAL":
+                                natural = true;
+                                break;
                             case "INNER":
                             case "CROSS":
-                            case "NATURAL":
                             case "OUTER":
                                 break;
                             default:
@@ -906,7 +975,17 @@ internal sealed class QueryShapeBuilder
             }
             else if (i < e && _t[i].IsWord("USING") && i + 1 < e && _t[i + 1].IsPunctuation('('))
             {
+                if (sources.Count > before)
+                {
+                    sources[before] = sources[before] with { Using = NamesIn(i + 2, _match[i + 1]).ToEquatableArray() };
+                }
+
                 i = _match[i + 1] + 1;
+            }
+
+            if (natural && sources.Count > before)
+            {
+                sources[before] = sources[before] with { Natural = true };
             }
 
             first = false;
@@ -937,9 +1016,9 @@ internal sealed class QueryShapeBuilder
             return -1;
         }
 
-        if (_t[i].IsWord("ONLY"))
+        if (_t[i].IsWord("ONLY") && ++i >= e)
         {
-            i++;
+            return -1;
         }
 
         var sources = Scope(scope).Sources;
@@ -983,7 +1062,7 @@ internal sealed class QueryShapeBuilder
 
         var last = parts[parts.Count - 1];
         var (tableAlias, tableRenames, afterAlias) = ParseAlias(chainEnd, e, allowAlias);
-        if (parts.Count == 1 && (last.Text.StartsWith("#", StringComparison.Ordinal) || last.Text.Equals("DUAL", StringComparison.OrdinalIgnoreCase)))
+        if ((parts.Count == 1 && (last.Text.StartsWith("#", StringComparison.Ordinal) || last.Text.Equals("DUAL", StringComparison.OrdinalIgnoreCase))) || _created.Contains(last.Text))
         {
             sources.Add(Unknown(tableAlias ?? last));
         }

@@ -28,7 +28,12 @@ than a missed one.
    snapshot and only reports diagnostics; snapshot edits never regenerate code (tested).
 4. **Report only what is proven.** Unknown constructs make the affected block opaque or its source unknown, which
    disables checks that depend on them instead of guessing. Unqualified names are checked only when every source in
-   scope is known; qualified names only when the qualifier is a known alias. Types are compared with the runtime's
+   scope is known; qualified names only when the qualifier is a known alias. Because keyword lists can never be
+   complete (`UTC_TIMESTAMP`, `GLOB`, `SOUNDS LIKE`), an unknown unqualified, unquoted name is reported only when it
+   is a written column or looks like a misspelling of a real one ("did you mean"); qualified and quoted names are
+   always reported. Tables the batch creates itself (`CREATE [TEMP] TABLE`, `SELECT ... INTO`) are unknown sources.
+   The recognizer runs inside the schema step, only when a snapshot exists, and any internal failure becomes a VQ1011
+   note for that query, never a generator failure. Types are compared with the runtime's
    lossless conversion rules (`ValueConverter`), and only combinations that fail for every row are reported.
 5. **Severities.** Names that do not exist (VQ1005), required members with no column (VQ1025) and duplicate result
    names (VQ1028) are errors: each fails on every execution. Possible NULLs (VQ1026), impossible conversions (VQ1027)

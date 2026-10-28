@@ -39,6 +39,7 @@ public sealed class SqlDialectTests
     [InlineData("DECLARE @n int = (SELECT COUNT(*) FROM t WHERE k = @Real) SELECT @n", "Real")]
     [InlineData("DECLARE c CURSOR FOR SELECT Id FROM t WHERE k = @Real", "Real")]
     [InlineData("SELECT Id FROM t WHERE Id = @Real; DECLARE @late int; SET @late = 1", "Real")]
+    [InlineData("DECLARE @a int = CASE WHEN @Real = 1 THEN 1 END, @b int = 0; SELECT @a + @b", "Real")]
     public void SqlServer_declared_variables_are_not_parameters(string sql, string expected)
         => Assert.Equal(expected, Names(sql, SqlDialect.SqlServer));
 

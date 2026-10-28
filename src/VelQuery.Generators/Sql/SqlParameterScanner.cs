@@ -295,10 +295,13 @@ internal static class SqlParameterScanner
         }
     }
 
-    /// <summary>Words that start a new T-SQL statement and so end a DECLARE without a semicolon.</summary>
+    /// <summary>
+    /// Words that start a new T-SQL statement and so end a DECLARE without a semicolon. Words that also occur inside
+    /// expressions (END of CASE ... END) are deliberately absent.
+    /// </summary>
     private static readonly HashSet<string> StatementStarts = new(StringComparer.OrdinalIgnoreCase)
     {
-        "SELECT", "INSERT", "UPDATE", "DELETE", "MERGE", "SET", "IF", "WHILE", "BEGIN", "END", "EXEC", "EXECUTE",
+        "SELECT", "INSERT", "UPDATE", "DELETE", "MERGE", "SET", "IF", "WHILE", "BEGIN", "EXEC", "EXECUTE",
         "DECLARE", "WITH", "RETURN", "PRINT", "OPEN", "FETCH", "CLOSE", "DEALLOCATE", "THROW", "RAISERROR", "TRUNCATE",
     };
 

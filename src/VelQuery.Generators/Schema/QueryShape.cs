@@ -41,7 +41,12 @@ internal enum SourceKind
 /// <para><c>Nullable</c>: Whether the source is on the optional side of an outer join, so all its columns may be NULL.</para>
 /// <para><c>Pseudo</c>: A pseudo-table such as <c>inserted</c> or <c>excluded</c>: resolvable, never expanded by <c>*</c>.</para>
 /// </remarks>
-internal sealed record QuerySource(SqlName? Alias, SourceKind Kind, int Table, int Scope, EquatableArray<SqlName> Renames, bool Nullable, bool Pseudo);
+/// <remarks>
+/// <para><c>Using</c> / <c>Natural</c>: the source was joined with <c>USING (cols)</c> or <c>NATURAL</c>, so those
+/// (or all same-named) columns appear once in <c>SELECT *</c>, not once per side.</para>
+/// </remarks>
+internal sealed record QuerySource(SqlName? Alias, SourceKind Kind, int Table, int Scope, EquatableArray<SqlName> Renames, bool Nullable, bool Pseudo,
+    EquatableArray<SqlName> Using = default, bool Natural = false);
 
 /// <summary>A column reference: <c>col</c>, <c>q.col</c> or <c>schema.table.col</c>.</summary>
 /// <remarks>
@@ -143,8 +148,9 @@ internal sealed record ResultMember(string Member, string Column, string Type, T
 internal sealed record SchemaCheckInput(
     string QueryId,
     SqlDialect Dialect,
-    QueryShape? Shape,
-    string? SkipReason,
+    string Sql,
+    bool StoredProcedure,
+    SqlSourceMap? Map,
     string? RowType,
     EquatableArray<ResultMember> Members,
     bool Scalar,

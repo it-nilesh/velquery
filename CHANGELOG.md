@@ -37,6 +37,13 @@ versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor versi
 ### Fixed
 - T-SQL batches that `DECLARE` local variables no longer report them as undeclared parameters (VQ1001).
 - PostgreSQL `INSERT ... OVERRIDING SYSTEM VALUE` no longer reports writes to identity columns (VQ1030).
+- Schema checks (code review): `SELECT *` over `JOIN ... USING`/`NATURAL JOIN` no longer reports the shared column
+  twice (VQ1028); tables created earlier in the batch, unknown keywords/functions (`UTC_TIMESTAMP`, `GLOB`) and system
+  columns (`rowid`, `ctid`) no longer report VQ1005; a schema file picked up twice counts once (VQ1031);
+  `DECLARE @a int = CASE ... END, @b int` declares both variables. SQL analysis now runs only when a snapshot exists
+  and can no longer stop code generation.
+- `velquery schema snapshot`: SQL Server CLR types (`geography`, `geometry`, `hierarchyid`) no longer abort the export;
+  PostgreSQL materialized views are exported. `schema diff` reports unbounded to bounded sizes as breaking.
 
 ### Security
 - Pinned `System.Security.Cryptography.Pkcs` 9.0.21 (CVE-2026-84008) for the Microsoft.Data.SqlClient dependency.

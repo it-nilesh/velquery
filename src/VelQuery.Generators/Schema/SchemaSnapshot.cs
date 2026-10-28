@@ -49,6 +49,13 @@ internal static class SchemaSnapshotReader
 
     public static SnapshotResult Read(IReadOnlyList<(string Path, string? Text)> files)
     {
+        // The same file can arrive twice: once from the automatic *.vqschema.json glob and once from an explicit
+        // AdditionalFiles item. That is one snapshot, not two.
+        files = files.GroupBy(f => f.Path.Replace('\\', '/'), StringComparer.OrdinalIgnoreCase).Select(g => g.First()).ToList();
+        if (files.Count > 1 && files.All(f => f.Text is not null && string.Equals(f.Text, files[0].Text, StringComparison.Ordinal)))
+        {
+            files = [files[0]]; // Identical content under two spellings of the path.
+        }
         if (files.Count == 0)
         {
             return new SnapshotResult(null, EquatableArray<DiagnosticInfo>.Empty);

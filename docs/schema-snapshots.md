@@ -69,9 +69,14 @@ schema (`dbo`, `public`, the MySQL database) and then any schema.
 The checker reports only what it can prove. When it does not understand part of a query, it skips that part rather
 than guessing, so a build error always means a real problem:
 
-- Names that come from places the snapshot does not describe: temporary tables (`#t`), table variables,
-  table-valued functions, `VALUES` lists, system catalogs (`sys.*`, `pg_catalog`, `information_schema`), and
-  three-part cross-database names.
+- Names that come from places the snapshot does not describe: temporary tables (`#t`), tables the same batch
+  creates (`CREATE [TEMP] TABLE`, `SELECT ... INTO`), table variables, table-valued functions, `VALUES` lists, system
+  catalogs (`sys.*`, `pg_catalog`, `information_schema`), system columns (`rowid`, `ctid`) and three-part
+  cross-database names.
+- An unknown name without a table prefix and without quotes (`WHERE Statsu = 1`) is reported only when it looks like
+  a misspelling of a real column, or is written by an INSERT or UPDATE. Otherwise it may be a keyword or function the
+  checker does not know (`UTC_TIMESTAMP`, `GLOB`), so it is skipped. Prefixed (`o.Statsu`) and quoted names are
+  always checked.
 - Expressions without an alias (`SELECT COUNT(*)`): their result name is unknown, so result checks are relaxed.
 - Types and nullability of computed expressions (`SUM(x)`, `CASE`, `COALESCE`), and every type check on SQLite
   (its driver converts values itself).

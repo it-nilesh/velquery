@@ -349,22 +349,13 @@ internal static class ContractParser
     }
 
     /// <summary>
-    /// Input to the schema snapshot checks (ADR-0006). The shape is built here, without the snapshot, so it is cached
-    /// with the contract and only the cheap matching step reruns when the snapshot changes.
+    /// Input to the schema snapshot checks (ADR-0006): values only. The SQL is analyzed later, in the schema step, and
+    /// only for the project's dialect and only when a snapshot exists, so projects without one pay nothing.
     /// </summary>
     private static SchemaCheckInput SchemaInput(string queryId, string sql, SqlDialect dialect, int commandType, QueryOperation operation, ITypeSymbol? rowType, string? rowTypeDisplay, RowPlan? rowPlan, ExpressionSyntax? sqlArgument, LocationInfo? sqlLocation)
     {
-        QueryShape? shape = null;
-        string? skip;
-        if (commandType == CommandTypeStoredProcedure)
-        {
-            skip = "stored procedures are not checked";
-        }
-        else
-        {
-            shape = QueryShapeBuilder.Build(sql, dialect, SqlSourceMap.Create(sqlArgument, sql), sqlLocation, out skip);
-        }
-
+        var storedProcedure = commandType == CommandTypeStoredProcedure;
+        var map = storedProcedure ? null : SqlSourceMap.Create(sqlArgument, sql);
         var members = new List<ResultMember>();
         var scalar = false;
         if (rowPlan is not null)
@@ -380,7 +371,7 @@ internal static class ContractParser
                 DbTypeRules.Target(TypeFacts.DisplayNoAnnotations(underlying), underlying.TypeKind == TypeKind.Enum), TypeFacts.AcceptsNull(rowType), Required: true));
         }
 
-        return new SchemaCheckInput(queryId, dialect, shape, skip, rowPlan is null ? null : rowTypeDisplay, members.ToEquatableArray(), scalar,
+        return new SchemaCheckInput(queryId, dialect, sql, storedProcedure, map, rowPlan is null ? null : rowTypeDisplay, members.ToEquatableArray(), scalar,
             operation != QueryOperation.Execute, sqlLocation);
     }
 
