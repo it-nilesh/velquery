@@ -1,7 +1,7 @@
 # VelQuery compiler diagnostics
 
 IDs are stable. VQ1001–VQ1011 follow PRD §7.1; VQ1012 and above are VelQuery additions for query contract shape
-and schema checks. Schema diagnostics (VQ1005, VQ1011, VQ1025–VQ1031) appear only when the project has a schema
+and schema checks. Schema diagnostics (VQ1005, VQ1011, VQ1025–VQ1033) appear only when the project has a schema
 snapshot; see [schema-checked SQL](schema-snapshots.md).
 Generator diagnostics come from `VelQuery.Generators` (`[VelQuerySql]` contracts); VQ1008 comes from
 `VelQuery.Analyzers` (call sites). Both ship in the `VelQuery.Core` package.
@@ -34,7 +34,9 @@ Generator diagnostics come from `VelQuery.Generators` (`[VelQuerySql]` contracts
 | VQ1028 | Error | Generator (snapshot) | Two result columns have the same name (for example `u.Id`, `o.Id`) | Alias one of them |
 | VQ1029 | Warning | Generator (snapshot) | An INSERT omits a NOT NULL column without a default | Add the column to the INSERT |
 | VQ1030 | Warning | Generator (snapshot) | An INSERT or UPDATE writes a computed, `GENERATED ALWAYS` or `rowversion` column | Remove the column from the write |
-| VQ1031 | Warning | Generator (snapshot) | The snapshot file is invalid, has an unknown format, or the project has more than one | Regenerate with `velquery schema snapshot` |
+| VQ1031 | Warning | Generator (snapshot) | The snapshot file is invalid, has an unknown format, or its name is used by another snapshot | Regenerate with `velquery schema snapshot`; give each snapshot a distinct `--name` |
+| VQ1032 | Info | Generator (snapshot) | A name without table prefix or quotes is neither a column of the query's tables nor a known keyword (a renamed or dropped column, or a function the checker does not know) | Fix the name, or qualify it (`t.col`) to get a definite VQ1005 |
+| VQ1033 | Warning | Generator (snapshot) | `[VelQuerySql(Schema = "...")]` names a snapshot the project does not have | Use a snapshot's `databaseLogicalName` or file name |
 
 ## SQL dialects
 

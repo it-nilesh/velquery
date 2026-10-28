@@ -64,6 +64,14 @@ public sealed class VelQuerySqlAttribute : Attribute
     /// provider package sets by default; leave unset unless one project targets several databases.
     /// </summary>
     public string? Dialect { get; set; }
+
+    /// <summary>
+    /// Name of the schema snapshot (<c>*.vqschema.json</c>) to check this contract against at build time: the
+    /// snapshot's <c>databaseLogicalName</c>, or its file name without <c>.vqschema.json</c>. Needed only when a
+    /// project has several snapshots of the same SQL dialect; otherwise the snapshot matching the dialect is used.
+    /// Build-time only; nothing reads it at run time.
+    /// </summary>
+    public string? Schema { get; set; }
 }
 
 /// <summary>Result cardinality of a <see cref="VelQuerySqlAttribute"/> contract.</summary>

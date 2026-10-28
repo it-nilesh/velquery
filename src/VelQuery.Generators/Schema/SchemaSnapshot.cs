@@ -29,14 +29,26 @@ internal sealed record SchemaObject(string? Schema, string Name, string Kind, Eq
 /// </summary>
 internal sealed record SchemaSnapshot(
     string Path,
+    string Name,
     SqlDialect Dialect,
     string? DefaultSchema,
     bool CaseSensitiveTables,
     bool CaseSensitiveColumns,
-    EquatableArray<SchemaObject> Objects);
+    EquatableArray<SchemaObject> Objects,
+    EquatableArray<SchemaRoutine> Routines,
+    bool RoutinesKnown);
 
-/// <summary>The project's snapshot (if one is usable) and problems found while reading snapshot files.</summary>
-internal sealed record SnapshotResult(SchemaSnapshot? Snapshot, EquatableArray<DiagnosticInfo> Problems);
+/// <summary>A stored procedure or function parameter. <see cref="Mode"/> is <c>in</c>, <c>out</c> or <c>inout</c>.</summary>
+internal sealed record SchemaParameter(string Name, string? DbType, string Mode);
+
+/// <summary>A stored procedure or function in a <see cref="SchemaSnapshot"/>.</summary>
+internal sealed record SchemaRoutine(string? Schema, string Name, string Kind, EquatableArray<SchemaParameter> Parameters)
+{
+    public string Display => Schema is null ? Name : Schema + "." + Name;
+}
+
+/// <summary>The project's usable snapshots and problems found while reading snapshot files.</summary>
+internal sealed record SnapshotResult(EquatableArray<SchemaSnapshot> Snapshots, EquatableArray<DiagnosticInfo> Problems);
 
 /// <summary>Reads snapshot files. Unknown properties are ignored so newer tooling can add metadata.</summary>
 internal static class SchemaSnapshotReader
@@ -47,48 +59,69 @@ internal static class SchemaSnapshotReader
 
     public static bool IsSnapshotPath(string path) => path.EndsWith(Extension, StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Reads every snapshot file. A project may have several (one per database); each is named by its
+    /// <c>databaseLogicalName</c>, or by its file name without <c>.vqschema.json</c>, and contracts pick one with
+    /// <c>[VelQuerySql(Schema = "...")]</c> or by dialect.
+    /// </summary>
     public static SnapshotResult Read(IReadOnlyList<(string Path, string? Text)> files)
     {
         // The same file can arrive twice: once from the automatic *.vqschema.json glob and once from an explicit
-        // AdditionalFiles item. That is one snapshot, not two.
-        files = files.GroupBy(f => f.Path.Replace('\\', '/'), StringComparer.OrdinalIgnoreCase).Select(g => g.First()).ToList();
-        if (files.Count > 1 && files.All(f => f.Text is not null && string.Equals(f.Text, files[0].Text, StringComparison.Ordinal)))
+        // AdditionalFiles item, possibly spelled differently. That is one snapshot, not two.
+        files = files.GroupBy(f => f.Path.Replace('\\', '/'), StringComparer.OrdinalIgnoreCase).Select(g => g.First())
+            .GroupBy(f => f.Text ?? f.Path, StringComparer.Ordinal).Select(g => g.First())
+            .ToList();
+
+        var snapshots = new List<SchemaSnapshot>();
+        var problems = new List<DiagnosticInfo>();
+        foreach (var (path, text) in files)
         {
-            files = [files[0]]; // Identical content under two spellings of the path.
-        }
-        if (files.Count == 0)
-        {
-            return new SnapshotResult(null, EquatableArray<DiagnosticInfo>.Empty);
+            var snapshot = ReadOne(path, text, out var problem);
+            if (snapshot is null)
+            {
+                problems.Add(DiagnosticInfo.Create(Descriptors.SchemaSnapshotProblem, null, FileName(path), problem!));
+            }
+            else if (snapshots.FirstOrDefault(other => string.Equals(other.Name, snapshot.Name, StringComparison.OrdinalIgnoreCase)) is { } clash)
+            {
+                problems.Add(DiagnosticInfo.Create(Descriptors.SchemaSnapshotProblem, null, FileName(path),
+                    $"its name '{snapshot.Name}' is also used by '{FileName(clash.Path)}'; give each snapshot a distinct databaseLogicalName"));
+            }
+            else
+            {
+                snapshots.Add(snapshot);
+            }
         }
 
-        if (files.Count > 1)
-        {
-            var names = string.Join(", ", files.Select(f => FileName(f.Path)).OrderBy(n => n, StringComparer.Ordinal));
-            return Problem(files[0].Path, $"a project can use one schema snapshot, but {files.Count} were found ({names})");
-        }
+        return new SnapshotResult(snapshots.ToEquatableArray(), problems.ToEquatableArray());
+    }
 
-        var (path, text) = files[0];
+    private static SchemaSnapshot? ReadOne(string path, string? text, out string? problem)
+    {
+        problem = null;
         if (text is null)
         {
-            return Problem(path, "the file could not be read");
+            problem = "the file could not be read";
+            return null;
         }
 
         try
         {
-            var root = MiniJson.Parse(text) as Dictionary<string, object?>;
-            if (root is null)
+            if (MiniJson.Parse(text) is not Dictionary<string, object?> root)
             {
-                return Problem(path, "the file is not a JSON object");
+                problem = "the file is not a JSON object";
+                return null;
             }
 
             if (Str(root, "format") != Format)
             {
-                return Problem(path, $"'format' must be \"{Format}\"");
+                problem = $"'format' must be \"{Format}\"";
+                return null;
             }
 
             if (!SqlDialects.TryParse(Str(root, "dialect"), out var dialect) || string.IsNullOrEmpty(Str(root, "dialect")) || dialect == SqlDialect.Generic)
             {
-                return Problem(path, "'dialect' must be sqlserver, postgresql, mysql or sqlite");
+                problem = "'dialect' must be sqlserver, postgresql, mysql or sqlite";
+                return null;
             }
 
             var objects = new List<SchemaObject>();
@@ -96,7 +129,8 @@ internal static class SchemaSnapshotReader
             {
                 if (item is not Dictionary<string, object?> obj || Str(obj, "name") is not { Length: > 0 } name)
                 {
-                    return Problem(path, "every object needs a 'name'");
+                    problem = "every object needs a 'name'";
+                    return null;
                 }
 
                 var columns = new List<SchemaColumn>();
@@ -104,7 +138,8 @@ internal static class SchemaSnapshotReader
                 {
                     if (c is not Dictionary<string, object?> column || Str(column, "name") is not { Length: > 0 } columnName)
                     {
-                        return Problem(path, $"every column of '{name}' needs a 'name'");
+                        problem = $"every column of '{name}' needs a 'name'";
+                        return null;
                     }
 
                     columns.Add(new SchemaColumn(columnName, Str(column, "dbType"), column.TryGetValue("nullable", out var n) ? n as bool? : null,
@@ -114,20 +149,38 @@ internal static class SchemaSnapshotReader
                 objects.Add(new SchemaObject(Str(obj, "schema"), name, Str(obj, "kind") ?? "table", columns.ToEquatableArray()));
             }
 
-            var snapshot = new SchemaSnapshot(path, dialect, Str(root, "defaultSchema"),
+            var routines = new List<SchemaRoutine>();
+            foreach (var item in List(root, "routines"))
+            {
+                if (item is not Dictionary<string, object?> routine || Str(routine, "name") is not { Length: > 0 } name)
+                {
+                    problem = "every routine needs a 'name'";
+                    return null;
+                }
+
+                var parameters = List(routine, "parameters").OfType<Dictionary<string, object?>>()
+                    .Where(p => Str(p, "name") is { Length: > 0 })
+                    .Select(p => new SchemaParameter(Str(p, "name")!, Str(p, "dbType"), Str(p, "mode") ?? "in"));
+                routines.Add(new SchemaRoutine(Str(routine, "schema"), name, Str(routine, "kind") ?? "procedure", parameters.ToEquatableArray()));
+            }
+
+            var fileName = FileName(path);
+            var logicalName = Str(root, "databaseLogicalName") is { Length: > 0 } logical
+                ? logical
+                : fileName.Substring(0, fileName.Length - Extension.Length);
+            return new SchemaSnapshot(path, logicalName, dialect, Str(root, "defaultSchema"),
                 root.TryGetValue("caseSensitiveTables", out var tables) && tables is true,
                 root.TryGetValue("caseSensitiveColumns", out var cols) && cols is true,
-                objects.ToEquatableArray());
-            return new SnapshotResult(snapshot, EquatableArray<DiagnosticInfo>.Empty);
+                objects.ToEquatableArray(),
+                routines.ToEquatableArray(),
+                root.ContainsKey("routines"));
         }
         catch (FormatException ex)
         {
-            return Problem(path, "it is not valid JSON (" + ex.Message + ")");
+            problem = "it is not valid JSON (" + ex.Message + ")";
+            return null;
         }
     }
-
-    private static SnapshotResult Problem(string path, string message)
-        => new(null, new[] { DiagnosticInfo.Create(Descriptors.SchemaSnapshotProblem, null, FileName(path), message) }.ToEquatableArray());
 
     private static string FileName(string path)
     {

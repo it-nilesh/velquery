@@ -97,7 +97,27 @@ internal static class SchemaReaders
                 r.GetBoolean(8), r.GetBoolean(9) || r.GetBoolean(11) || generated, generated)));
         }
 
-        return new DbSchema("sqlserver", logicalName, defaultSchema, caseSensitive, caseSensitive, Group(rows));
+        // Procedures only (P, CLR PC): they are what CommandType.StoredProcedure calls. Parameter names keep their '@'.
+        const string RoutineSql = """
+            SELECT s.name, o.name, p.name, COALESCE(TYPE_NAME(p.system_type_id), TYPE_NAME(p.user_type_id)), p.is_output
+            FROM sys.objects o
+            JOIN sys.schemas s ON s.schema_id = o.schema_id
+            LEFT JOIN sys.parameters p ON p.object_id = o.object_id AND p.parameter_id > 0
+            WHERE o.type IN ('P', 'PC') AND o.is_ms_shipped = 0
+            ORDER BY s.name, o.name, p.parameter_id
+            """;
+        var routineRows = new List<(string Schema, string Name, string Kind, DbParameter? Parameter)>();
+        await foreach (var r in RowsAsync(connection, RoutineSql, cancellationToken).ConfigureAwait(false))
+        {
+            var schema = r.GetString(0);
+            if (schemas.Count == 0 || schemas.Contains(schema, StringComparer.OrdinalIgnoreCase))
+            {
+                routineRows.Add((schema, r.GetString(1), "procedure",
+                    r.IsDBNull(2) ? null : new DbParameter(r.GetString(2).TrimStart('@'), r.GetString(3), r.GetBoolean(4) ? "inout" : "in")));
+            }
+        }
+
+        return new DbSchema("sqlserver", logicalName, defaultSchema, caseSensitive, caseSensitive, Group(rows), GroupRoutines(routineRows));
     }
 
     // ------------------------------------------------------------------ PostgreSQL
@@ -152,7 +172,41 @@ internal static class SchemaReaders
                 r.GetBoolean(10))));
         }
 
-        return new DbSchema("postgresql", logicalName, defaultSchema, CaseSensitiveTables: true, CaseSensitiveColumns: true, Group(rows));
+        // Functions and procedures (Npgsql calls both with CommandType.StoredProcedure); each overload is its own
+        // routine. RETURNS TABLE columns (mode 't') are results, not parameters. Unnamed parameters cannot be bound.
+        const string RoutineSql = """
+            SELECT n.nspname, p.proname, CASE p.prokind WHEN 'p' THEN 'procedure' ELSE 'function' END, p.oid::bigint,
+                   a.name, format_type(a.type, NULL), a.mode
+            FROM pg_proc p
+            JOIN pg_namespace n ON n.oid = p.pronamespace
+            LEFT JOIN LATERAL unnest(
+                COALESCE(p.proargnames, array_fill(NULL::text, ARRAY[COALESCE(array_length(p.proallargtypes, 1), p.pronargs)])),
+                COALESCE(p.proallargtypes, p.proargtypes::oid[]),
+                COALESCE(p.proargmodes, array_fill('i'::"char", ARRAY[p.pronargs])))
+                WITH ORDINALITY AS a(name, type, mode, ord) ON true
+            WHERE p.prokind IN ('f', 'p') AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+              AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
+            ORDER BY 1, 2, 4, a.ord
+            """;
+        var routineRows = new List<(string Schema, string Name, string Kind, long Oid, DbParameter? Parameter)>();
+        await foreach (var r in RowsAsync(connection, RoutineSql, cancellationToken).ConfigureAwait(false))
+        {
+            var schema = r.GetString(0);
+            if (schemas.Count > 0 && !schemas.Contains(schema, StringComparer.Ordinal))
+            {
+                continue;
+            }
+
+            var mode = r.IsDBNull(6) ? "i" : r.GetChar(6).ToString();
+            var parameter = r.IsDBNull(4) || r.IsDBNull(5) || mode == "t" ? null
+                : new DbParameter(r.GetString(4), r.GetString(5), mode switch { "o" => "out", "b" => "inout", _ => "in" });
+            routineRows.Add((schema, r.GetString(1), r.GetString(2), r.GetInt64(3), parameter));
+        }
+
+        var routines = routineRows.GroupBy(r => r.Oid)
+            .Select(g => new DbRoutine(g.First().Schema, g.First().Name, g.First().Kind, g.Where(r => r.Parameter is not null).Select(r => r.Parameter!).ToList()))
+            .ToList();
+        return new DbSchema("postgresql", logicalName, defaultSchema, CaseSensitiveTables: true, CaseSensitiveColumns: true, Group(rows), routines);
     }
 
     // ------------------------------------------------------------------ MySQL / MariaDB
@@ -196,7 +250,22 @@ internal static class SchemaReaders
                 generated)));
         }
 
-        return new DbSchema("mysql", logicalName, schemas.Count == 0 ? database : null, CaseSensitiveTables: lowerCase == 0, CaseSensitiveColumns: false, Group(rows));
+        var routineSql = $"""
+            SELECT r.ROUTINE_SCHEMA, r.ROUTINE_NAME, r.ROUTINE_TYPE, p.PARAMETER_NAME, p.DTD_IDENTIFIER, p.PARAMETER_MODE
+            FROM information_schema.ROUTINES r
+            LEFT JOIN information_schema.PARAMETERS p
+              ON p.SPECIFIC_SCHEMA = r.ROUTINE_SCHEMA AND p.SPECIFIC_NAME = r.ROUTINE_NAME AND p.ORDINAL_POSITION > 0
+            WHERE r.ROUTINE_SCHEMA IN ({string.Join(", ", targets.Select((_, i) => "@s" + i))})
+            ORDER BY r.ROUTINE_SCHEMA, r.ROUTINE_NAME, p.ORDINAL_POSITION
+            """;
+        var routineRows = new List<(string Schema, string Name, string Kind, DbParameter? Parameter)>();
+        await foreach (var r in RowsAsync(connection, routineSql, cancellationToken, targets.Select((s, i) => ("@s" + i, (object)s)).ToArray()).ConfigureAwait(false))
+        {
+            routineRows.Add((r.GetString(0), r.GetString(1), r.GetString(2).ToLowerInvariant(),
+                r.IsDBNull(3) ? null : new DbParameter(r.GetString(3), r.GetString(4), (r.IsDBNull(5) ? "IN" : r.GetString(5)).ToLowerInvariant())));
+        }
+
+        return new DbSchema("mysql", logicalName, schemas.Count == 0 ? database : null, CaseSensitiveTables: lowerCase == 0, CaseSensitiveColumns: false, Group(rows), GroupRoutines(routineRows));
     }
 
     // ------------------------------------------------------------------ SQLite
@@ -227,7 +296,8 @@ internal static class SchemaReaders
                 generated)));
         }
 
-        return new DbSchema("sqlite", logicalName, null, CaseSensitiveTables: false, CaseSensitiveColumns: false, Group(rows));
+        // SQLite has no stored procedures: an empty list, not "unknown".
+        return new DbSchema("sqlite", logicalName, null, CaseSensitiveTables: false, CaseSensitiveColumns: false, Group(rows), []);
     }
 
     // ------------------------------------------------------------------ helpers
@@ -235,6 +305,11 @@ internal static class SchemaReaders
     private static List<DbObject> Group(List<(string Schema, string Name, string Kind, DbColumn Column)> rows)
         => rows.GroupBy(r => (r.Schema, r.Name))
             .Select(g => new DbObject(g.Key.Schema.Length == 0 ? null : g.Key.Schema, g.Key.Name, g.First().Kind, g.Select(r => r.Column).ToList()))
+            .ToList();
+
+    private static List<DbRoutine> GroupRoutines(List<(string Schema, string Name, string Kind, DbParameter? Parameter)> rows)
+        => rows.GroupBy(r => (r.Schema, r.Name))
+            .Select(g => new DbRoutine(g.Key.Schema, g.Key.Name, g.First().Kind, g.Where(r => r.Parameter is not null).Select(r => r.Parameter!).ToList()))
             .ToList();
 
     private static async Task<object?> ScalarAsync(DbConnection connection, string sql, CancellationToken cancellationToken)

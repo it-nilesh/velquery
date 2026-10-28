@@ -107,6 +107,7 @@ internal static class ContractParser
         var cardinality = CardinalityDefault;
         var commandType = CommandTypeText;
         var timeout = 0;
+        string? schemaName = null;
         foreach (var named in attribute.NamedArguments)
         {
             switch (named.Key)
@@ -119,6 +120,9 @@ internal static class ContractParser
                     break;
                 case "CommandTimeoutSeconds" when named.Value.Value is int value:
                     timeout = value;
+                    break;
+                case "Schema" when named.Value.Value is string { Length: > 0 } name:
+                    schemaName = name;
                     break;
                 case "Dialect" when named.Value.Value is string name:
                     // A per-contract dialect overrides the project's VelQuerySqlDialect.
@@ -323,7 +327,7 @@ internal static class ContractParser
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        var schemaCheck = SchemaInput(queryId, sql, dialect, commandType, operation.Value, rowType, rowTypeDisplay, rowPlan, sqlArgument, sqlLocation);
+        var schemaCheck = SchemaInput(queryId, sql, dialect, commandType, operation.Value, rowType, rowTypeDisplay, rowPlan, sqlArgument, sqlLocation, schemaName, bindings);
         var model = new ContractModel(
             HintName: HintName(type),
             Namespace: type.ContainingNamespace.IsGlobalNamespace ? null : type.ContainingNamespace.ToDisplayString(),
@@ -352,7 +356,7 @@ internal static class ContractParser
     /// Input to the schema snapshot checks (ADR-0006): values only. The SQL is analyzed later, in the schema step, and
     /// only for the project's dialect and only when a snapshot exists, so projects without one pay nothing.
     /// </summary>
-    private static SchemaCheckInput SchemaInput(string queryId, string sql, SqlDialect dialect, int commandType, QueryOperation operation, ITypeSymbol? rowType, string? rowTypeDisplay, RowPlan? rowPlan, ExpressionSyntax? sqlArgument, LocationInfo? sqlLocation)
+    private static SchemaCheckInput SchemaInput(string queryId, string sql, SqlDialect dialect, int commandType, QueryOperation operation, ITypeSymbol? rowType, string? rowTypeDisplay, RowPlan? rowPlan, ExpressionSyntax? sqlArgument, LocationInfo? sqlLocation, string? schemaName, List<BindingModel> bindings)
     {
         var storedProcedure = commandType == CommandTypeStoredProcedure;
         var map = storedProcedure ? null : SqlSourceMap.Create(sqlArgument, sql);
@@ -372,7 +376,7 @@ internal static class ContractParser
         }
 
         return new SchemaCheckInput(queryId, dialect, sql, storedProcedure, map, rowPlan is null ? null : rowTypeDisplay, members.ToEquatableArray(), scalar,
-            operation != QueryOperation.Execute, sqlLocation);
+            operation != QueryOperation.Execute, sqlLocation, schemaName, bindings.Select(b => b.SqlName).ToEquatableArray());
     }
 
     private static (QueryOperation? Operation, ITypeSymbol? RowType) ResolveOperation(IMethodSymbol method, int cardinality, LocationInfo? location, List<DiagnosticInfo> diagnostics)

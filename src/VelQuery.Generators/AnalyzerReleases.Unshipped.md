@@ -31,3 +31,5 @@ VQ1028 | VelQuery.Contracts | Error | Query returns the same column name more th
 VQ1029 | VelQuery.Contracts | Warning | INSERT does not set a NOT NULL column without default
 VQ1030 | VelQuery.Contracts | Warning | SQL writes a database-generated column
 VQ1031 | VelQuery.Contracts | Warning | Schema snapshot cannot be used
+VQ1032 | VelQuery.Contracts | Info | Unqualified name is neither a known column nor a known keyword
+VQ1033 | VelQuery.Contracts | Warning | Contract names a schema snapshot the project does not have

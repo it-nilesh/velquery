@@ -11,6 +11,10 @@ versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor versi
   columns (VQ1025, VQ1028), nullable and type mismatches (VQ1026, VQ1027) and INSERT/UPDATE write problems (VQ1029,
   VQ1030); VQ1011 marks SQL outside the checked subset and VQ1031 an unusable snapshot. Diagnostics point at the name
   inside the SQL string, also in multi-line raw strings. The build never contacts a database.
+- Schema checks: several snapshots per project (one per database), chosen by dialect or
+  `[VelQuerySql(Schema = "...")]` (VQ1033 for an unknown name); stored procedure contracts are checked against the
+  snapshot's procedures and parameters; VQ1032 (info) shows unknown names that may be columns instead of hiding them.
+  Snapshots now include stored procedures and functions (`routines`), and `schema diff` compares them.
 - `VelQuery.Cli` dotnet tool (`velquery`): `schema snapshot` exports a deterministic snapshot from SQL Server,
   PostgreSQL, MySQL/MariaDB or SQLite using catalog views only; `--check` and `schema diff` detect schema drift in CI
   and classify breaking changes.

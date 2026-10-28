@@ -155,4 +155,6 @@ internal sealed record SchemaCheckInput(
     EquatableArray<ResultMember> Members,
     bool Scalar,
     bool ReturnsRows,
-    LocationInfo? SqlLocation);
+    LocationInfo? SqlLocation,
+    string? SchemaName,
+    EquatableArray<string> Parameters);

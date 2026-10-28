@@ -5,7 +5,7 @@
   "defaultSchema": "dbo",
   "caseSensitiveTables": false,
   "caseSensitiveColumns": false,
-  "snapshotSha256": "7c169269f1fc6e62c64148486dfe7b731ccb010598d408542e32da6791e24aae",
+  "snapshotSha256": "18473d96a43b31b0cd86276e4fd9a1395946ae0ef07318cd9cf7ce98706728d5",
   "objects": [
     {
       "schema": "dbo",
@@ -20,5 +20,6 @@
         { "name": "CreatedAt", "dbType": "datetimeoffset", "nullable": false, "hasDefault": true }
       ]
     }
-  ]
+  ],
+  "routines": []
 }

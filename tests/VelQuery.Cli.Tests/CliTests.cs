@@ -58,6 +58,20 @@ public sealed class CliTests : IDisposable
     }
 
     [Fact]
+    public void The_committed_sample_snapshot_is_canonical()
+    {
+        // The sample's snapshot must be byte-for-byte what the tool writes, or `--check` would report drift.
+        var root = AppContext.BaseDirectory;
+        while (!File.Exists(Path.Combine(root, "VelQuery.slnx")))
+        {
+            root = Path.GetDirectoryName(root)!;
+        }
+
+        var json = File.ReadAllText(Path.Combine(root, "samples", "QuickStart", "QuickStart.Data", "Database", "quickstart.vqschema.json"));
+        Assert.Equal(json, DbSchema.Parse(json).ToCanonicalJson());
+    }
+
+    [Fact]
     public void Generator_reads_what_the_cli_writes()
     {
         // The CLI's writer and the generator's reader are separate implementations of one format; prove they agree.
@@ -107,6 +121,32 @@ public sealed class CliTests : IDisposable
             "ok table added dbo.Audit",
         ], changes);
         Assert.Empty(SchemaDiff.Compare(approved, Sample()));
+    }
+
+    [Fact]
+    public void Diff_classifies_stored_procedure_changes()
+    {
+        static DbSchema With(params DbRoutine[] routines) => new("sqlserver", null, "dbo", false, false, [], routines);
+        var before = With(
+            new DbRoutine("dbo", "GetUser", "procedure", [new DbParameter("Id", "int", "in"), new DbParameter("Name", "nvarchar", "in")]),
+            new DbRoutine("dbo", "Old", "procedure", []));
+        var after = With(
+            new DbRoutine("dbo", "GetUser", "procedure", [new DbParameter("Id", "bigint", "in"), new DbParameter("Tenant", "int", "in")]),
+            new DbRoutine("dbo", "New", "procedure", []));
+
+        var changes = SchemaDiff.Compare(before, after).Select(c => $"{(c.Breaking ? "BREAKING" : "ok")} {c.Kind} {c.Target}").Order(StringComparer.Ordinal);
+        Assert.Equal(
+        [
+            "BREAKING parameter removed dbo.GetUser @Name",
+            "BREAKING parameter type changed dbo.GetUser @Id",
+            "BREAKING procedure removed dbo.Old",
+            "ok parameter added dbo.GetUser @Tenant",
+            "ok procedure added dbo.New",
+        ], changes);
+
+        // A snapshot written before routines were exported has nothing to compare.
+        Assert.Empty(SchemaDiff.Compare(before with { Routines = null }, after));
+        Assert.Contains("\"routines\": [", Sample().ToCanonicalJson(), StringComparison.Ordinal);
     }
 
     [Fact]

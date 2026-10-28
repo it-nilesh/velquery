@@ -12,9 +12,10 @@ namespace VelQuery.Cli.Tests;
 
 /// <summary>
 /// One contract to check against an exported snapshot and then run against the real database. <see cref="Expected"/>
-/// lists the VelQuery diagnostic IDs the build must report for it (empty: none).
+/// lists the VelQuery diagnostic IDs the build must report for it (empty: none). With <see cref="Procedure"/> set,
+/// <see cref="Sql"/> is a stored procedure name called with those parameters (<c>CommandType.StoredProcedure</c>).
 /// </summary>
-public sealed record QueryCase(string Name, string Sql, string ReturnType, string[] Expected, string? Cardinality = null)
+public sealed record QueryCase(string Name, string Sql, string ReturnType, string[] Expected, string? Cardinality = null, string[]? Procedure = null)
 {
     /// <summary>Diagnostics that mean the database itself will reject the statement.</summary>
     public bool MustFail => Expected.Any(id => id is "VQ1005" or "VQ1029" or "VQ1030");
@@ -53,7 +54,7 @@ internal static partial class SchemaScenario
                 continue;
             }
 
-            var error = await ExecuteAsync(connect, c.Sql, values);
+            var error = await ExecuteAsync(connect, c.Sql, values, c.Procedure);
             if (c.MustFail && error is null)
             {
                 failures.Add($"{c.Name}: the build reported [{string.Join(", ", actual)}] but the database ran the statement\n    SQL: {c.Sql}");
@@ -75,8 +76,9 @@ internal static partial class SchemaScenario
 
     private static IEnumerable<Microsoft.CodeAnalysis.Diagnostic> Run(string dialect, string snapshot, string rowTypes, QueryCase c)
     {
-        var parameters = string.Concat(Placeholders(c.Sql).Select(p => $", {ParameterType(p)} {p}"));
-        var cardinality = c.Cardinality is null ? string.Empty : ", Cardinality = QueryCardinality." + c.Cardinality;
+        var parameters = string.Concat((c.Procedure ?? Placeholders(c.Sql)).Select(p => $", {ParameterType(p)} {p}"));
+        var cardinality = (c.Cardinality is null ? string.Empty : ", Cardinality = QueryCardinality." + c.Cardinality)
+            + (c.Procedure is null ? string.Empty : ", CommandType = System.Data.CommandType.StoredProcedure");
         var source = Usings + rowTypes + $$"""
 
             [VelQuerySql("q.{{c.Name}}", {{Literal(c.Sql)}}{{cardinality}})]
@@ -90,7 +92,7 @@ internal static partial class SchemaScenario
             .Where(d => d.Id.StartsWith("VQ", StringComparison.Ordinal));
     }
 
-    private static async Task<string?> ExecuteAsync(Func<Task<DbConnection>> connect, string sql, IReadOnlyDictionary<string, object> values)
+    private static async Task<string?> ExecuteAsync(Func<Task<DbConnection>> connect, string sql, IReadOnlyDictionary<string, object> values, string[]? procedure)
     {
         await using var connection = await connect();
         await using var transaction = await connection.BeginTransactionAsync();
@@ -99,10 +101,15 @@ internal static partial class SchemaScenario
             await using var command = connection.CreateCommand();
             command.Transaction = transaction;
             command.CommandText = sql;
-            foreach (var name in Placeholders(sql))
+            if (procedure is not null)
+            {
+                command.CommandType = System.Data.CommandType.StoredProcedure;
+            }
+
+            foreach (var name in procedure ?? Placeholders(sql))
             {
                 var parameter = command.CreateParameter();
-                parameter.ParameterName = "@" + name;
+                parameter.ParameterName = procedure is null ? "@" + name : name;
                 parameter.Value = values[name];
                 command.Parameters.Add(parameter);
             }
@@ -120,7 +127,7 @@ internal static partial class SchemaScenario
 
             return null;
         }
-        catch (DbException ex)
+        catch (Exception ex) when (ex is DbException or ArgumentException or InvalidOperationException)
         {
             return ex.Message;
         }
@@ -150,7 +157,7 @@ internal static partial class SchemaScenario
     private static string ParameterType(string name) => name switch
     {
         "total" or "min" => "decimal",
-        "id" => "int",
+        "id" or "p_id" => "int",
         _ => "string",
     };
 

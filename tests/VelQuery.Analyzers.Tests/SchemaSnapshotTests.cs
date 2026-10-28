@@ -241,7 +241,9 @@ public sealed class SchemaSnapshotTests
     [Fact]
     public void Unknown_keywords_and_functions_are_not_reported_as_columns()
         => SqlServer(
-            Contract("\"SELECT Id, Name, Email FROM Users WHERE CreatedAt < UTC_TIMESTAMP AND Name GLOB 'a*' AND SOME_NILADIC_THING > 0\"", name: "A")
+            Contract("\"SELECT Id, Name, Email FROM Users WHERE CreatedAt < UTC_TIMESTAMP AND Name GLOB 'a*' AND {|VQ1032:SOME_NILADIC_THING|} > 0\"", name: "A")
+            // A column renamed to something unrelated (Email -> Contact) is an info message, not silence.
+            + Contract("\"SELECT Id, Name, Email FROM Users WHERE {|VQ1032:Contact|} IS NULL\"", name: "E")
             + Contract("\"SELECT Id, Name, Email FROM Users WHERE Name SOUNDS LIKE 'x' ORDER BY ROWID\"", name: "B")
             // Still reported: misspellings of real columns, quoted names, qualified names, written columns.
             + Contract("\"SELECT Id, Name, Email FROM Users u WHERE {|VQ1005:Emial|} = '' AND {|VQ1005:[Nope]|} = 1 AND u.{|VQ1005:Nope2|} = 1\"", name: "C")
@@ -289,6 +291,61 @@ public sealed class SchemaSnapshotTests
         }
     }
 
+    // ---------------------------------------------------------------- several snapshots and stored procedures
+
+    private static readonly string Reporting = SqlServerSnapshot.Replace("\"defaultSchema\": \"dbo\",", "\"databaseLogicalName\": \"reporting\", \"defaultSchema\": \"dbo\",").Replace("\"Orders\"", "\"Sales\"");
+
+    [Fact]
+    public void Several_snapshots_are_chosen_by_name_or_dialect()
+        => DiagnosticVerifier.Verify(Rows
+            // Two SQL Server snapshots: a contract must say which one it targets.
+            + Contract("{|VQ1011:\"SELECT Id, Total, Status FROM Orders\"|}", "Task<IReadOnlyList<OrderRow>>", name: "A")
+            + Contract("\"SELECT Id, Total, Status FROM Orders\", Schema = \"shop\"", "Task<IReadOnlyList<OrderRow>>", name: "B")
+            + Contract("\"SELECT Id, Total, Status FROM {|VQ1005:Orders|}\", Schema = \"reporting\"", "Task<IReadOnlyList<OrderRow>>", name: "C")
+            + Contract("{|VQ1033:\"SELECT Id, Total, Status FROM Orders\"|}, Schema = \"nope\"", "Task<IReadOnlyList<OrderRow>>", name: "D")
+            // A PostgreSQL contract in the same project uses the only PostgreSQL snapshot.
+            + Contract("\"SELECT id, name FROM {|VQ1005:missing|}\", Dialect = \"postgresql\"", "Task<IReadOnlyList<NameRow>>", name: "E"),
+            null, ("/db/shop.vqschema.json", SqlServerSnapshot), ("/db/reporting.vqschema.json", Reporting), ("/db/pg.vqschema.json", PostgresSnapshot));
+
+    private static readonly string WithProcedures = SqlServerSnapshot.TrimEnd().TrimEnd('}').TrimEnd().TrimEnd(']') + """
+        ],
+          "routines": [
+            { "schema": "dbo", "name": "GetUser", "kind": "procedure", "parameters": [ { "name": "Id", "dbType": "bigint", "mode": "in" } ] },
+            { "schema": "dbo", "name": "Touch", "kind": "procedure", "parameters": [] },
+            { "schema": "dbo", "name": "Total", "kind": "function", "parameters": [ { "name": "Id", "dbType": "bigint", "mode": "in" } ] }
+          ]
+        }
+        """;
+
+    [Fact]
+    public void Stored_procedures_and_their_parameters_are_checked()
+        => DiagnosticVerifier.Verify(Rows + """
+            [VelQuerySql("p.ok", "dbo.GetUser", CommandType = CommandType.StoredProcedure)]
+            public static partial class Ok { public static partial Task<UserRow?> ExecuteAsync(IVelQuerySession session, long id); }
+
+            [VelQuerySql("p.unqualified", "[GetUser]", CommandType = CommandType.StoredProcedure)]
+            public static partial class Unqualified { public static partial Task<UserRow?> ExecuteAsync(IVelQuerySession session, long id); }
+
+            [VelQuerySql("p.missing", {|VQ1005:"dbo.GetUsr"|}, CommandType = CommandType.StoredProcedure)]
+            public static partial class Missing { public static partial Task<UserRow?> ExecuteAsync(IVelQuerySession session, long id); }
+
+            [VelQuerySql("p.param", {|VQ1005:"dbo.GetUser"|}, CommandType = CommandType.StoredProcedure)]
+            public static partial class WrongParameter { public static partial Task<UserRow?> ExecuteAsync(IVelQuerySession session, long userId); }
+
+            [VelQuerySql("p.function", {|VQ1005:"dbo.Total"|}, CommandType = CommandType.StoredProcedure, Cardinality = QueryCardinality.Scalar)]
+            public static partial class Function { public static partial Task<long> ExecuteAsync(IVelQuerySession session, long id); }
+
+            [VelQuerySql("p.system", "sp_who", CommandType = CommandType.StoredProcedure, Cardinality = QueryCardinality.NonQuery)]
+            public static partial class SystemProcedure { public static partial Task<int> ExecuteAsync(IVelQuerySession session); }
+            """, null, ("/s.vqschema.json", WithProcedures));
+
+    [Fact]
+    public void Stored_procedures_with_an_old_snapshot_are_noted_not_reported()
+        => SqlServer("""
+            [VelQuerySql("p.old", {|VQ1011:"dbo.GetUser"|}, CommandType = CommandType.StoredProcedure)]
+            public static partial class Old { public static partial Task<UserRow?> ExecuteAsync(IVelQuerySession session, long id); }
+            """);
+
     // ---------------------------------------------------------------- VQ1011 and VQ1031
 
     [Fact]
@@ -307,8 +364,10 @@ public sealed class SchemaSnapshotTests
         var invalid = DiagnosticVerifier.Messages(Rows + Contract("\"SELECT Id, Name, Email FROM Userz\""), null, ("/s.vqschema.json", "{ \"format\": "));
         Assert.Equal(["VQ1031: Schema snapshot 's.vqschema.json' is not used: it is not valid JSON (unexpected end of file at line 1)"], invalid);
 
-        var two = DiagnosticVerifier.Messages(Rows, null, ("/a.vqschema.json", SqlServerSnapshot), ("/b.vqschema.json", SqlServerSnapshot.Replace("\"Users\"", "\"People\"")));
-        Assert.Single(two, m => m.StartsWith("VQ1031", System.StringComparison.Ordinal) && m.Contains("(a.vqschema.json, b.vqschema.json)"));
+        // Several snapshots are allowed, but each needs its own name.
+        var clash = SqlServerSnapshot.Replace("\"defaultSchema\": \"dbo\",", "\"databaseLogicalName\": \"shop\", \"defaultSchema\": \"dbo\",");
+        var two = DiagnosticVerifier.Messages(Rows, null, ("/a.vqschema.json", clash), ("/b.vqschema.json", clash.Replace("\"Users\"", "\"People\"")));
+        Assert.Single(two, m => m.StartsWith("VQ1031", System.StringComparison.Ordinal) && m.Contains("'shop' is also used by 'a.vqschema.json'"));
 
         var format = DiagnosticVerifier.Messages(Rows, null, ("/s.vqschema.json", SqlServerSnapshot.Replace("velquery.schema.v1", "v9")));
         Assert.Single(format, m => m.Contains("'format' must be \"velquery.schema.v1\""));

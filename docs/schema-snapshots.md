@@ -36,8 +36,19 @@ GetProduct.cs(8,22): error VQ1005: Query 'products.by-id': column 'Descripton' i
 
 3. Build. Every contract is now checked. Commit the snapshot and review its diff like any other code change.
 
-A project uses one snapshot. Its `dialect` must match the project's SQL dialect (set by the provider package); a
-contract with a different `Dialect` is not checked (VQ1011).
+A contract is checked against the snapshot of its SQL dialect (set by the provider package, or
+`[VelQuerySql(Dialect = ...)]`).
+
+**Several databases in one project.** Add one snapshot per database. Each is named by its `databaseLogicalName`
+(`velquery schema snapshot --name reporting`), or by its file name without `.vqschema.json`. When two snapshots have
+the same dialect, each contract names the one it targets:
+
+```csharp
+[VelQuerySql("sales.by-day", "SELECT Day, Total FROM dbo.DailySales", Schema = "reporting")]
+```
+
+A contract without `Schema` uses the only snapshot of its dialect; if there are several it is not checked (VQ1011,
+which says so), and an unknown name is VQ1033.
 
 ## What is checked
 
@@ -50,8 +61,10 @@ contract with a different `Dialect` is not checked (VQ1011).
 | VQ1027 | Warning | A column type that can never convert to the member type (for example `nvarchar` into `int`) |
 | VQ1029 | Warning | An INSERT that leaves out a NOT NULL column without a default |
 | VQ1030 | Warning | An INSERT or UPDATE that writes a computed, `GENERATED ALWAYS` or `rowversion` column |
-| VQ1011 | Info | SQL outside the checked subset (for example `MERGE`, `FOR JSON`, stored procedures) |
-| VQ1031 | Warning | A snapshot file that cannot be used (invalid, wrong format, or more than one per project) |
+| VQ1032 | Info | A name without table prefix or quotes that is neither a column nor a known keyword (for example a renamed column, or a function the checker does not know) |
+| VQ1011 | Info | SQL outside the checked subset (for example `MERGE`, `FOR JSON`), or no single snapshot for the query |
+| VQ1033 | Warning | `Schema = "name"` names a snapshot the project does not have |
+| VQ1031 | Warning | A snapshot file that cannot be used (invalid, wrong format, or a name another snapshot already uses) |
 
 Covered SQL: `SELECT` with joins, derived tables, CTEs (also recursive), correlated and `IN`/`EXISTS` subqueries,
 `UNION`/`INTERSECT`/`EXCEPT`, window functions, `TOP`/`LIMIT`/`OFFSET ... FETCH`, `LATERAL` and `APPLY`; `INSERT`
@@ -80,7 +93,9 @@ than guessing, so a build error always means a real problem:
 - Expressions without an alias (`SELECT COUNT(*)`): their result name is unknown, so result checks are relaxed.
 - Types and nullability of computed expressions (`SUM(x)`, `CASE`, `COALESCE`), and every type check on SQLite
   (its driver converts values itself).
-- Stored procedures, `MERGE`, `EXEC`, dynamic SQL and `FOR JSON`/`FOR XML` results (reported as VQ1011).
+- `MERGE`, `EXEC`, dynamic SQL and `FOR JSON`/`FOR XML` results (reported as VQ1011).
+- What a stored procedure returns, and parameters a contract leaves out (SQL Server does not expose which T-SQL
+  parameters have defaults).
 - Permissions, triggers, constraints other than NOT NULL, and whether the snapshot is still current (see below).
 
 Static checks complement integration tests; they do not replace them (PRD §7.1).
@@ -112,6 +127,14 @@ velquery schema diff --snapshot Database/shop.vqschema.json --provider postgresq
 
 Breaking means code checked against the snapshot can now fail: a removed table, view or column; a changed or shrunk
 type; a column that became nullable; or a column that became required for INSERT.
+
+## Stored procedures
+
+Contracts with `CommandType = CommandType.StoredProcedure` are checked against the procedures in the snapshot: the
+procedure must exist (VQ1005, with a "did you mean"), and every parameter the contract binds must be one of its
+parameters (VQ1005). A PostgreSQL or MySQL *function* is reported too: these contracts call procedures (`CALL`), so
+query a function with SQL instead (`SELECT * FROM fn(@x)`). System procedures (`sp_*`, `xp_*`) are not checked.
+Snapshots made before procedures were exported have no `routines` list; regenerate them to enable these checks.
 
 ## Opting out
 

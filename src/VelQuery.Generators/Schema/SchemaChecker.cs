@@ -7,6 +7,26 @@ using VelQuery.Generators.Sql;
 
 namespace VelQuery.Generators.Schema;
 
+/// <summary>All usable snapshots of the project, as one pipeline value; equality is the snapshots'.</summary>
+internal sealed class SchemaCatalogSet : IEquatable<SchemaCatalogSet>
+{
+    public SchemaCatalogSet(EquatableArray<SchemaSnapshot> snapshots)
+    {
+        Snapshots = snapshots;
+        Catalogs = snapshots.Select(s => new SchemaCatalog(s)).ToList();
+    }
+
+    public EquatableArray<SchemaSnapshot> Snapshots { get; }
+
+    public IReadOnlyList<SchemaCatalog> Catalogs { get; }
+
+    public bool Equals(SchemaCatalogSet? other) => other is not null && Snapshots.Equals(other.Snapshots);
+
+    public override bool Equals(object? obj) => Equals(obj as SchemaCatalogSet);
+
+    public override int GetHashCode() => Snapshots.GetHashCode();
+}
+
 /// <summary>
 /// The snapshot plus name lookups, as one incremental pipeline value. Equality is the snapshot's, so contracts are
 /// re-checked only when the snapshot content changes.
@@ -89,11 +109,35 @@ internal sealed class SchemaChecker
         _tables = shape.Tables.Select(ResolveTable).ToArray();
     }
 
-    public static EquatableArray<DiagnosticInfo> Check(SchemaCheckInput input, SchemaCatalog? catalog)
+    public static EquatableArray<DiagnosticInfo> Check(SchemaCheckInput input, SchemaCatalogSet? set)
     {
-        if (catalog is null)
+        if (set is null || set.Catalogs.Count == 0)
         {
             return EquatableArray<DiagnosticInfo>.Empty;
+        }
+
+        SchemaCatalog catalog;
+        if (input.SchemaName is { } wanted)
+        {
+            var named = set.Catalogs.FirstOrDefault(c => string.Equals(c.Snapshot.Name, wanted, StringComparison.OrdinalIgnoreCase));
+            if (named is null)
+            {
+                var available = string.Join(", ", set.Catalogs.Select(c => "'" + c.Snapshot.Name + "'").OrderBy(n => n, StringComparer.Ordinal));
+                return new[] { DiagnosticInfo.Create(Descriptors.UnknownSchemaName, input.SqlLocation, input.QueryId, wanted, available) }.ToEquatableArray();
+            }
+
+            catalog = named;
+        }
+        else
+        {
+            // Without a name, the one snapshot of the query's dialect is used.
+            var matching = set.Catalogs.Where(c => c.Dialect == input.Dialect).ToList();
+            if (matching.Count > 1)
+            {
+                return Note(input, $"{matching.Count} schema snapshots match the {SqlDialects.DisplayName(input.Dialect)} dialect ({string.Join(", ", matching.Select(c => c.Snapshot.Name))}); set Schema = \"name\" on [VelQuerySql]");
+            }
+
+            catalog = matching.Count == 1 ? matching[0] : set.Catalogs[0];
         }
 
         if (input.Dialect != catalog.Dialect)
@@ -101,13 +145,13 @@ internal sealed class SchemaChecker
             return Note(input, $"the schema snapshot is for {SqlDialects.DisplayName(catalog.Dialect)}, but the query uses the {SqlDialects.DisplayName(input.Dialect)} dialect");
         }
 
-        if (input.StoredProcedure)
-        {
-            return Note(input, "stored procedures are not checked");
-        }
-
         try
         {
+            if (input.StoredProcedure)
+            {
+                return CheckProcedure(input, catalog);
+            }
+
             var shape = QueryShapeBuilder.Build(input.Sql, input.Dialect, input.Map, input.SqlLocation, out var reason);
             if (shape is null)
             {
@@ -124,6 +168,88 @@ internal sealed class SchemaChecker
         {
             return Note(input, $"the SQL could not be analyzed ({ex.GetType().Name}); please report this issue");
         }
+    }
+
+    /// <summary>
+    /// Stored procedure contracts (<c>CommandType.StoredProcedure</c>): the procedure must exist and every parameter
+    /// the contract binds must be one of its parameters. Omitted parameters are not reported: SQL Server does not expose
+    /// whether a T-SQL parameter has a default.
+    /// </summary>
+    private static EquatableArray<DiagnosticInfo> CheckProcedure(SchemaCheckInput input, SchemaCatalog catalog)
+    {
+        if (!catalog.Snapshot.RoutinesKnown)
+        {
+            return Note(input, "the schema snapshot lists no stored procedures; regenerate it with 'velquery schema snapshot'");
+        }
+
+        var tokens = SqlTokenizer.Tokenize(input.Sql, input.Dialect);
+        var parts = new List<SqlName>();
+        for (var i = 0; tokens is not null && i < tokens.Count; i++)
+        {
+            var token = tokens[i];
+            if (i % 2 == 0 && token.IsName)
+            {
+                parts.Add(new SqlName(token.Text, token.Kind == SqlTokenKind.QuotedIdentifier));
+            }
+            else if (i % 2 == 1 && token.IsPunctuation('.'))
+            {
+                continue;
+            }
+            else
+            {
+                parts.Clear();
+                break;
+            }
+        }
+
+        if (parts.Count is 0 or > 3 || tokens!.Count != parts.Count * 2 - 1)
+        {
+            return Note(input, "the stored procedure name could not be read");
+        }
+
+        if (parts.Count == 3)
+        {
+            return EquatableArray<DiagnosticInfo>.Empty; // Cross-database name: not described by this snapshot.
+        }
+
+        var name = parts[parts.Count - 1];
+        var schema = parts.Count == 2 ? parts[0] : null;
+        var matching = catalog.Snapshot.Routines
+            .Where(r => catalog.SameTableName(name, r.Name) && (schema is null || (r.Schema is not null && catalog.SameTableName(schema, r.Schema))))
+            .ToList();
+
+        // CommandType.StoredProcedure calls procedures (PostgreSQL and MySQL use CALL, which cannot call a function).
+        var routines = matching.Where(r => r.Kind == "procedure").ToList();
+        var display = schema is null ? name.Text : schema.Text + "." + name.Text;
+        if (routines.Count == 0)
+        {
+            if (matching.Count == 0 && (name.Text.StartsWith("sp_", StringComparison.OrdinalIgnoreCase) || name.Text.StartsWith("xp_", StringComparison.OrdinalIgnoreCase)))
+            {
+                return EquatableArray<DiagnosticInfo>.Empty; // System procedures live outside the user schema.
+            }
+
+            var detail = matching.Count > 0
+                ? $"; '{matching[0].Display}' is a {matching[0].Kind}, which a stored procedure contract cannot call: query it with SQL (SELECT * FROM {matching[0].Name}(...)) instead"
+                : Suggest(name.Text, catalog.Snapshot.Routines.Where(r => r.Kind == "procedure").Select(r => r.Name));
+            return new[]
+            {
+                DiagnosticInfo.Create(Descriptors.NotInSnapshot, input.SqlLocation, input.QueryId, $"stored procedure '{display}'", detail),
+            }.ToEquatableArray();
+        }
+
+        // Overloads (PostgreSQL functions) are one name: a parameter is valid if any overload declares it.
+        var known = routines.SelectMany(r => r.Parameters).Select(p => p.Name.TrimStart('@')).ToList();
+        var diagnostics = new List<DiagnosticInfo>();
+        foreach (var parameter in input.Parameters)
+        {
+            if (!known.Any(k => string.Equals(k, parameter, StringComparison.OrdinalIgnoreCase)))
+            {
+                diagnostics.Add(DiagnosticInfo.Create(Descriptors.NotInSnapshot, input.SqlLocation, input.QueryId,
+                    $"parameter '@{parameter}' of stored procedure '{routines[0].Display}'", Suggest(parameter, known)));
+            }
+        }
+
+        return diagnostics.ToEquatableArray();
     }
 
     private static EquatableArray<DiagnosticInfo> Note(SchemaCheckInput input, string reason)
@@ -192,6 +318,12 @@ internal sealed class SchemaChecker
             {
                 var where = searched.Count == 0 ? string.Empty : $" in {string.Join(", ", searched.Select(n => "'" + n + "'"))}";
                 Report(Descriptors.NotInSnapshot, reference.Location, $"column '{reference.Display}'{where}", suggestion);
+            }
+            else
+            {
+                // Still visible in the IDE, so a dropped or renamed column is not silently accepted, but never a build failure.
+                var tables = searched.Count == 0 ? "the query's tables" : string.Join(", ", searched.Select(n => "'" + n + "'"));
+                Report(Descriptors.PossiblyUnknownColumn, reference.Location, reference.Display, tables);
             }
         }
         else if (status == Status.Found && reference.Write && column!.Generated)

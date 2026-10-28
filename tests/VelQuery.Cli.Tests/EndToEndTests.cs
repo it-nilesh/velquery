@@ -23,6 +23,7 @@ internal static class Values
     public static readonly IReadOnlyDictionary<string, object> All = new Dictionary<string, object>
     {
         ["id"] = 1,
+        ["p_id"] = 1,
         ["name"] = "Ann",
         ["email"] = "ann@example.com",
         ["status"] = "new",
@@ -141,6 +142,8 @@ public sealed class PostgreSqlEndToEndTests
         CREATE TABLE "Audit" ("Id" bigserial PRIMARY KEY, "Note" text);
         CREATE VIEW big_orders AS SELECT id, customer_id, total FROM orders WHERE total > 100;
         CREATE TABLE order_notes (note_id int PRIMARY KEY, customer_id int NOT NULL, note text NOT NULL);
+        CREATE FUNCTION get_customer(p_id int) RETURNS TABLE(id int, name text, email text) LANGUAGE sql AS $$ SELECT c.id, c.name, c.email FROM customers c WHERE c.id = p_id $$;
+        CREATE PROCEDURE touch_customer(p_id int) LANGUAGE sql AS $$ UPDATE customers SET name = name WHERE id = p_id $$;
         CREATE MATERIALIZED VIEW customer_totals AS SELECT customer_id AS id, 'c' || customer_id AS name, SUM(total) AS total FROM orders GROUP BY customer_id;
         INSERT INTO customers (name, email) VALUES ('Ann', NULL), ('Bob', 'bob@example.com');
         INSERT INTO orders (customer_id, total, status) VALUES (1, 10, 'new'), (2, 250, 'paid');
@@ -163,6 +166,10 @@ public sealed class PostgreSqlEndToEndTests
         new("cx_delete_using", "DELETE FROM orders USING customers c WHERE c.id = orders.customer_id AND c.name = @name", "Task<int>", [], "NonQuery"),
         new("cx_casts_extract", "SELECT id, name FROM customers WHERE created_at::date <= current_date OR extract(year FROM created_at) > 2000", "Task<IReadOnlyList<IdName>>", []),
         new("cx_recursive", "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n WHERE x < 5) SELECT x AS id, 'n' AS name FROM n", "Task<IReadOnlyList<IdName>>", []),
+        new("sp_ok", "touch_customer", "Task<int>", [], "NonQuery", Procedure: ["p_id"]),
+        new("sp_missing", "tuch_customer", "Task<int>", ["VQ1005"], "NonQuery", Procedure: ["p_id"]),
+        new("sp_wrong_parameter", "public.touch_customer", "Task<int>", ["VQ1005"], "NonQuery", Procedure: ["name"]),
+        new("sp_function", "get_customer", "Task<CustomerRow?>", ["VQ1005"], Procedure: ["p_id"]),
         new("cx_materialized_view", "SELECT id, name, total FROM customer_totals", "Task<IReadOnlyList<CustomerTotal>>", []),
         new("cx_using_star", "SELECT * FROM orders JOIN order_notes USING (customer_id)", "Task<IReadOnlyList<OrderNote>>", []),
         new("cx_natural_star", "SELECT * FROM customers NATURAL JOIN customers c2", "Task<IReadOnlyList<CustomerRow>>", []),
@@ -233,6 +240,7 @@ public sealed class MySqlEndToEndTests
         CREATE TABLE orders (id int AUTO_INCREMENT PRIMARY KEY, customer_id int NOT NULL, total decimal(10,2) NOT NULL,
             status varchar(20) NOT NULL, shipped_at datetime NULL, total_with_tax decimal(12,2) AS (total * 1.2) STORED);
         CREATE VIEW big_orders AS SELECT id, customer_id, total FROM orders WHERE total > 100;
+        CREATE PROCEDURE get_customer(IN p_id INT) SELECT id, name, email FROM customers WHERE id = p_id;
         INSERT INTO customers (name, email) VALUES ('Ann', NULL), ('Bob', 'bob@example.com');
         INSERT INTO orders (customer_id, total, status) VALUES (1, 10, 'new'), (2, 250, 'paid');
         """;
@@ -240,6 +248,9 @@ public sealed class MySqlEndToEndTests
     // Valid SQL beyond the basics: no false diagnostics, and all of it must run.
     private static readonly QueryCase[] Complex =
     [
+        new("sp_ok", "get_customer", "Task<CustomerRow?>", [], Procedure: ["p_id"]),
+        new("sp_missing", "get_customr", "Task<CustomerRow?>", ["VQ1005"], Procedure: ["p_id"]),
+        new("sp_wrong_parameter", "shop.get_customer", "Task<CustomerRow?>", ["VQ1005"], Procedure: ["name"]),
         new("cx_scalar_subquery", "SELECT c.id, c.name, (SELECT COUNT(*) FROM orders o WHERE o.customer_id = c.id) AS order_count FROM customers c", "Task<IReadOnlyList<IdName>>", []),
         new("cx_in_subquery", "SELECT id, name FROM customers WHERE id IN (SELECT customer_id FROM orders WHERE total > @min)", "Task<IReadOnlyList<IdName>>", []),
         new("cx_window", "SELECT id, name, ROW_NUMBER() OVER (PARTITION BY name ORDER BY id DESC) AS rn FROM customers", "Task<IReadOnlyList<IdName>>", []),
@@ -320,6 +331,7 @@ public sealed class SqlServerEndToEndTests
         "CREATE SCHEMA sales",
         "CREATE TABLE sales.Regions (Code char(2) NOT NULL PRIMARY KEY, Name nvarchar(50) NOT NULL)",
         "CREATE VIEW dbo.BigOrders AS SELECT Id, CustomerId, Total FROM dbo.Orders WHERE Total > 100",
+        "CREATE PROCEDURE dbo.GetCustomer @id int AS SELECT Id, Name, Email FROM dbo.Customers WHERE Id = @id",
     ];
 
     // Valid T-SQL beyond the basics: no false diagnostics, and all of it must run.
@@ -339,6 +351,9 @@ public sealed class SqlServerEndToEndTests
         new("cx_delete_output", "DELETE FROM Orders OUTPUT DELETED.Id WHERE Id = -1", "Task<IReadOnlyList<int>>", []),
         new("cx_temp_table_batch", "SELECT Id INTO #t FROM Customers; SELECT t.Id, c.Name FROM #t t JOIN Customers c ON c.Id = t.Id", "Task<IReadOnlyList<IdName>>", []),
         new("cx_declare_batch", "DECLARE @since datetime2 = DATEADD(day, -1, SYSUTCDATETIME()); SELECT Id, Name FROM Customers WHERE CreatedAt >= @since OR Id = @id", "Task<IReadOnlyList<IdName>>", []),
+        new("sp_ok", "dbo.GetCustomer", "Task<CustomerRow?>", [], Procedure: ["id"]),
+        new("sp_missing", "dbo.GetCustomr", "Task<CustomerRow?>", ["VQ1005"], Procedure: ["id"]),
+        new("sp_wrong_parameter", "dbo.GetCustomer", "Task<CustomerRow?>", ["VQ1005"], Procedure: ["name"]),
         new("cx_select_into_table", "SELECT Id, Name INTO Staging FROM Customers; SELECT s.Id, s.Name FROM Staging s", "Task<IReadOnlyList<IdName>>", []),
         new("cx_set_batch", "SET NOCOUNT ON; SELECT Id, Name FROM Customers WHERE Id >= @id", "Task<IReadOnlyList<IdName>>", []),
         new("cx_merge", "MERGE Customers AS t USING (SELECT 1 AS Id) AS s ON t.Id = s.Id WHEN MATCHED THEN UPDATE SET t.Name = t.Name;", "Task<int>", ["VQ1011"], "NonQuery"),

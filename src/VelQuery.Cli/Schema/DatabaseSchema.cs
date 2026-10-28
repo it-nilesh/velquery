@@ -17,6 +17,15 @@ internal sealed record DbObject(string? Schema, string Name, string Kind, IReadO
     public string Display => Schema is null ? Name : Schema + "." + Name;
 }
 
+/// <summary>A stored procedure or function parameter; <see cref="Mode"/> is <c>in</c>, <c>out</c> or <c>inout</c>.</summary>
+internal sealed record DbParameter(string Name, string DbType, string Mode);
+
+/// <summary>A stored procedure or function as exported to a snapshot.</summary>
+internal sealed record DbRoutine(string? Schema, string Name, string Kind, IReadOnlyList<DbParameter> Parameters)
+{
+    public string Display => Schema is null ? Name : Schema + "." + Name;
+}
+
 /// <summary>
 /// Database metadata for a <c>velquery.schema.v1</c> snapshot (PRD §11.2, ADR-0006): names, types, nullability and
 /// defaults only. Never data rows, credentials, grants or comments.
@@ -27,7 +36,8 @@ internal sealed record DbSchema(
     string? DefaultSchema,
     bool CaseSensitiveTables,
     bool CaseSensitiveColumns,
-    IReadOnlyList<DbObject> Objects)
+    IReadOnlyList<DbObject> Objects,
+    IReadOnlyList<DbRoutine>? Routines = null)
 {
     public const string Format = "velquery.schema.v1";
 
@@ -123,7 +133,38 @@ internal sealed record DbSchema(
             sb.Append("    }");
         }
 
-        sb.Append(objects.Count == 0 ? "]\n" : "\n  ]\n");
+        sb.Append(objects.Count == 0 ? "]" : "\n  ]");
+
+        // Routines (stored procedures and functions) follow the objects; the key is always written, so readers can
+        // tell "none" from "a snapshot made before routines were exported".
+        var routines = (Routines ?? []).OrderBy(r => r.Schema ?? string.Empty, StringComparer.Ordinal).ThenBy(r => r.Name, StringComparer.Ordinal).ThenBy(r => r.Parameters.Count).ToList();
+        sb.Append(",\n  \"routines\": [");
+        for (var i = 0; i < routines.Count; i++)
+        {
+            var routine = routines[i];
+            sb.Append(i == 0 ? "\n" : ",\n");
+            sb.Append("    {\n");
+            if (routine.Schema is not null)
+            {
+                Property(sb, 3, "schema", routine.Schema);
+            }
+
+            Property(sb, 3, "name", routine.Name);
+            Property(sb, 3, "kind", routine.Kind);
+            sb.Append("      \"parameters\": [");
+            for (var p = 0; p < routine.Parameters.Count; p++)
+            {
+                var parameter = routine.Parameters[p];
+                sb.Append(p == 0 ? "\n" : ",\n");
+                sb.Append("        { \"name\": ").Append(Quote(parameter.Name)).Append(", \"dbType\": ").Append(Quote(parameter.DbType))
+                    .Append(", \"mode\": ").Append(Quote(parameter.Mode)).Append(" }");
+            }
+
+            sb.Append(routine.Parameters.Count == 0 ? "]\n" : "\n      ]\n");
+            sb.Append("    }");
+        }
+
+        sb.Append(routines.Count == 0 ? "]\n" : "\n  ]\n");
         sb.Append("}\n");
         return sb.ToString();
     }
@@ -164,13 +205,32 @@ internal sealed record DbSchema(
             }
         }
 
+        var routines = new List<DbRoutine>();
+        if (root.TryGetProperty("routines", out var routineList) && routineList.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var routine in routineList.EnumerateArray())
+            {
+                var parameters = new List<DbParameter>();
+                if (routine.TryGetProperty("parameters", out var ps) && ps.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var p in ps.EnumerateArray())
+                    {
+                        parameters.Add(new DbParameter(Text(p, "name") ?? string.Empty, Text(p, "dbType") ?? string.Empty, Text(p, "mode") ?? "in"));
+                    }
+                }
+
+                routines.Add(new DbRoutine(Text(routine, "schema"), Text(routine, "name") ?? throw new FormatException("a routine has no name"), Text(routine, "kind") ?? "procedure", parameters));
+            }
+        }
+
         return new DbSchema(
             Text(root, "dialect") ?? string.Empty,
             Text(root, "databaseLogicalName"),
             Text(root, "defaultSchema"),
             Flag(root, "caseSensitiveTables") == true,
             Flag(root, "caseSensitiveColumns") == true,
-            objects);
+            objects,
+            routines);
     }
 
     private static string? Text(JsonElement element, string name)

@@ -88,7 +88,7 @@ public sealed class VelQuerySqlGenerator : IIncrementalGenerator
             .WithTrackingName(TrackingNames.SchemaSnapshot);
         context.RegisterSourceOutput(snapshot.Select(static (s, _) => s.Problems), ReportAll);
 
-        var catalog = snapshot.Select(static (s, _) => s.Snapshot is null ? null : new SchemaCatalog(s.Snapshot));
+        var catalog = snapshot.Select(static (s, _) => new SchemaCatalogSet(s.Snapshots));
         var schemaChecks = contracts
             .Select(static (c, _) => c.SchemaCheck)
             .Where(static c => c is not null)
