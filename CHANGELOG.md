@@ -6,6 +6,7 @@ versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor versi
 ## [Unreleased] — 0.1.0-alpha
 
 ### Added
+- Apache License 2.0 (`LICENSE`) and `NOTICE`; packages ship the NOTICE file.
 - **Schema-checked SQL** (ADR-0006): the build checks `[VelQuerySql]` contracts against an offline schema snapshot
   (`*.vqschema.json`, format `velquery.schema.v1`) for unknown tables and columns (VQ1005), missing or duplicate result
   columns (VQ1025, VQ1028), nullable and type mismatches (VQ1026, VQ1027) and INSERT/UPDATE write problems (VQ1029,

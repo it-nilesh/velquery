@@ -127,4 +127,5 @@ dotnet test --solution VelQuery.slnx     # integration tests need Docker (SQL Se
 
 ## License
 
-Apache-2.0 is proposed for the core (PRD §25); not yet finalized.
+Licensed under the [Apache License, Version 2.0](LICENSE). Copyright 2026 Nilesh Vishwakarma; see [NOTICE](NOTICE).
+The license does not grant permission to use the VelQuery name or marks (Apache-2.0 §6).

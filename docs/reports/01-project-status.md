@@ -65,7 +65,7 @@ Size: about 14,700 lines of library code and 17,800 lines of tests; 38 commits; 
 |---|---|---|---|
 | 1 | Host the repository (GitHub) | Product owner | CI cannot run; nothing can move from "Preview" to "Verified"; no backup |
 | 2 | Run the suite on real SQL Server 2022 (x64) | Engineering (needs #1) | All SQL Server tests ran on Azure SQL Edge on ARM64 |
-| 3 | License decision (Apache-2.0 proposed) | Legal | Packages declare Apache-2.0, but no LICENSE file exists |
+| 3 | ~~License decision~~ | Done | Apache-2.0 adopted: `LICENSE` and `NOTICE` added (2026-10-29) |
 | 4 | Trademark and NuGet name clearance for "VelQuery" | Legal | PRD risk item |
 | 5 | Design partners (3–5 teams) and API freeze | Product owner | Required for Gate D |
 
