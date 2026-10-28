@@ -24,7 +24,9 @@ The requirements baseline is [docs/prd/VelQuery_PRD_v1.0.md](docs/prd/VelQuery_P
 | `src/VelQuery.Generators` | Roslyn incremental generator for `[VelQuerySql]` contracts (netstandard2.0) |
 | `src/VelQuery.MongoDB.Generators` | Incremental generator for `[VelQueryMongo*]` contracts and VQ2xxx diagnostics (netstandard2.0) |
 | `src/VelQuery.Analyzers` | VQ1xxx diagnostics (netstandard2.0) |
-| `tests/` | Unit, golden, analyzer, and SQL Server / PostgreSQL / MySQL / SQLite / MongoDB integration tests (xUnit v3) |
+| `src/VelQuery.Generators/Schema` | Schema snapshot checks: query shape recognizer, snapshot reader, matcher (ADR-0006) |
+| `src/VelQuery.Cli` | `velquery` dotnet tool: `schema snapshot` / `schema diff` (catalog reads only) |
+| `tests/` | Unit, golden, analyzer, CLI (schema end-to-end on all four SQL engines), and SQL Server / PostgreSQL / MySQL / SQLite / MongoDB integration tests (xUnit v3) |
 | `benchmarks/` | BenchmarkDotNet suites comparing raw ADO.NET, Dapper, Dapper.AOT and VelQuery |
 
 ## Build and test
@@ -32,6 +34,7 @@ The requirements baseline is [docs/prd/VelQuery_PRD_v1.0.md](docs/prd/VelQuery_P
 ```bash
 dotnet build VelQuery.slnx            # warnings are errors
 dotnet test --solution VelQuery.slnx  # integration tests need Docker (Testcontainers SQL Server, PostgreSQL, MySQL, MongoDB); SQLite needs none
+dotnet test --solution VelQuery.slnx --report-xunit-trx --results-directory artifacts/test-results  # keep per-test results
 ```
 
 - SDK is pinned in `global.json` (.NET 10). Package versions live only in `Directory.Packages.props`; never put

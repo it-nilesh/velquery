@@ -1,6 +1,8 @@
 # VelQuery compiler diagnostics
 
-IDs are stable. VQ1001–VQ1011 follow PRD §7.1; VQ1012 and above are VelQuery additions for query contract shape.
+IDs are stable. VQ1001–VQ1011 follow PRD §7.1; VQ1012 and above are VelQuery additions for query contract shape
+and schema checks. Schema diagnostics (VQ1005, VQ1011, VQ1025–VQ1033) appear only when the project has a schema
+snapshot; see [schema-checked SQL](schema-snapshots.md).
 Generator diagnostics come from `VelQuery.Generators` (`[VelQuerySql]` contracts); VQ1008 comes from
 `VelQuery.Analyzers` (call sites). Both ship in the `VelQuery.Core` package.
 
@@ -24,6 +26,17 @@ Generator diagnostics come from `VelQuery.Generators` (`[VelQuerySql]` contracts
 | VQ1022 | Warning | Generator | A placeholder style VelQuery does not bind (`?`, `?NNN`, `:name`, `$name`, `$1`, depending on the dialect); it would receive no value at run time | Use `@name` placeholders |
 | VQ1023 | Warning | Generator | The same placeholder is spelled with different casing (`@Id` and `@id`). In the SQLite dialect each spelling is bound so the query still works | Use one spelling |
 | VQ1024 | Warning | Generator | Unknown dialect in the `VelQuerySqlDialect` MSBuild property or `[VelQuerySql(Dialect = ...)]`; generic rules are used | Use `sqlserver`, `postgresql`, `mysql`, `sqlite` or `generic` |
+| VQ1005 | Error | Generator (snapshot) | A table, view or column is not in the schema snapshot; points at the name, with a "did you mean" suggestion | Fix the name, or refresh the snapshot if the database changed |
+| VQ1011 | Info | Generator (snapshot) | Part of the SQL is outside the checked subset (for example `MERGE`, `FOR JSON`, stored procedures), or the snapshot dialect differs from the query's | None needed; cover it with an integration test |
+| VQ1025 | Error | Generator (snapshot) | A constructor parameter or `init`/`required` member has no result column | Select or alias the column, or make the member an optional settable property |
+| VQ1026 | Warning | Generator (snapshot) | A column that can be NULL (also via outer joins) maps to a non-nullable member; strict mapping throws on NULL | Make the member nullable, or return a non-NULL value (`COALESCE`) |
+| VQ1027 | Warning | Generator (snapshot) | The column's database type can never convert losslessly to the member type | Change the member type or `CAST` in SQL |
+| VQ1028 | Error | Generator (snapshot) | Two result columns have the same name (for example `u.Id`, `o.Id`) | Alias one of them |
+| VQ1029 | Warning | Generator (snapshot) | An INSERT omits a NOT NULL column without a default | Add the column to the INSERT |
+| VQ1030 | Warning | Generator (snapshot) | An INSERT or UPDATE writes a computed, `GENERATED ALWAYS` or `rowversion` column | Remove the column from the write |
+| VQ1031 | Warning | Generator (snapshot) | The snapshot file is invalid, has an unknown format, or its name is used by another snapshot | Regenerate with `velquery schema snapshot`; give each snapshot a distinct `--name` |
+| VQ1032 | Info | Generator (snapshot) | A name without table prefix or quotes is neither a column of the query's tables nor a known keyword (a renamed or dropped column, or a function the checker does not know) | Fix the name, or qualify it (`t.col`) to get a definite VQ1005 |
+| VQ1033 | Warning | Generator (snapshot) | `[VelQuerySql(Schema = "...")]` names a snapshot the project does not have | Use a snapshot's `databaseLogicalName` or file name |
 
 ## SQL dialects
 
@@ -41,6 +54,7 @@ property yourself when a project references several providers. Unset means `sqls
 | `sqlite` | `[...]`, backtick and `"..."` identifiers | non-nesting block comments; `?`, `?NNN`, `:name`, `$name` → VQ1022; spellings that differ in case are bound separately (SQLite binds case-sensitively) |
 | `generic` | `[...]`, backtick and `"..."` identifiers | `?`/`:name` → VQ1022 |
 
-Not understood in any dialect: `DECLARE @local` variables in T-SQL batches (reported as VQ1001) and SQL built inside
-`EXEC('...')`. Stored procedure contracts (`CommandType.StoredProcedure`) bind every method parameter by name and skip
+T-SQL batches may declare local variables: every `@name` declared with `DECLARE` (including table variables) is a
+variable of the batch, not a parameter; a placeholder in a declaration's initializer (`DECLARE @n int = @limit`) is still
+a parameter. Not understood in any dialect: SQL built inside `EXEC('...')`. Stored procedure contracts (`CommandType.StoredProcedure`) bind every method parameter by name and skip
 the scan.

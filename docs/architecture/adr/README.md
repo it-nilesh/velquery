@@ -15,6 +15,7 @@ An accepted ADR is not edited in substance; a new ADR supersedes it.
 | [ADR-0003](ADR-0003-generated-contracts-vs-dynamic-sql.md) | Generated typed query contracts vs runtime SQL | Proposed | 2026-10-10 |
 | [ADR-0004](ADR-0004-mapping-semantics.md) | Mapping semantics | Proposed | 2026-10-10 |
 | [ADR-0005](ADR-0005-parameter-metadata-and-providers.md) | Parameter metadata and provider adapters | Proposed | 2026-10-10 |
+| [ADR-0006](ADR-0006-static-sql-subset-and-schema-snapshots.md) | Static SQL subset and offline schema snapshots | Proposed | 2026-10-24 |
 | [ADR-0013](ADR-0013-sql-server-bulk-insert.md) | SQL Server bulk insert | Proposed | 2026-10-11 |
 | [ADR-0014](ADR-0014-postgresql-provider.md) | PostgreSQL provider | Proposed | 2026-10-11 |
 | [ADR-0015](ADR-0015-multi-database-support-strategy.md) | Multi-database support strategy (amends ADR-0001) | Proposed | 2026-10-11 |
@@ -23,7 +24,7 @@ An accepted ADR is not edited in substance; a new ADR supersedes it.
 | [ADR-0018](ADR-0018-mysql-mariadb-provider.md) | MySQL / MariaDB provider | Proposed | 2026-10-20 |
 | [ADR-0019](ADR-0019-mongodb-adapter.md) | MongoDB adapter (phase 3 pilot) | Proposed | 2026-10-20 |
 
-Still to be written (PRD §27): ADR-0006 static SQL subset and schema snapshots, ADR-0007 Native AOT provider/auth
+Still to be written (PRD §27): ADR-0007 Native AOT provider/auth
 matrix, ADR-0008 benchmark fairness and publishing of losses, ADR-0009 diagnostics privacy and backpressure,
 ADR-0010 no implicit retry / partial streaming, ADR-0011 AI tool permissions, ADR-0012 versioning and packaging.
 

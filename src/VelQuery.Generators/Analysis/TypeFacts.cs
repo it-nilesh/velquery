@@ -1,3 +1,4 @@
+using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
@@ -100,6 +101,12 @@ internal static class TypeFacts
         if (IsByteArray(type))
         {
             return "Binary";
+        }
+
+        // Provider-native values (SQL Server table-valued parameters): the provider sets the real type at bind time.
+        if (type.AllInterfaces.Any(i => IsType(i, "VelQuery.Parameters", "IProviderParameterValue")))
+        {
+            return "Object";
         }
 
         return WellKnownName(type) switch

@@ -11,6 +11,10 @@ docker compose up -d                                   # SQL Server on localhost
 dotnet run --project QuickStart.Api --launch-profile http   # http://localhost:5080
 ```
 
+`QuickStart.Data/Database/quickstart.vqschema.json` is a schema snapshot exported from that table with
+`velquery schema snapshot`, so the build checks every query against the real columns: misspell one in
+`Queries/Products` and the build fails with VQ1005 at the exact spot ([schema-checked SQL](../../docs/schema-snapshots.md)).
+
 On startup the API waits for SQL Server, creates the `VelQuerySample` database and runs the embedded scripts in
 `QuickStart.Data/Database/Scripts` (table + seed rows). Try the requests in
 [QuickStart.Api/QuickStart.Api.http](QuickStart.Api/QuickStart.Api.http), or:

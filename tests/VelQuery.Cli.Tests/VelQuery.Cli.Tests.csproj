@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>VelQuery.Cli.Tests</RootNamespace>
+    <!-- Roslyn's synchronous driver/parse APIs take optional tokens that add nothing to these in-memory tests. -->
+    <NoWarn>$(NoWarn);xUnit1051</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../Shared/GeneratorHarness.cs" Link="Shared/GeneratorHarness.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/VelQuery.Cli/VelQuery.Cli.csproj" />
+    <ProjectReference Include="../../src/VelQuery.Generators/VelQuery.Generators.csproj" />
+    <ProjectReference Include="../../src/VelQuery.Core/VelQuery.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Testcontainers.MsSql" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Testcontainers.MySql" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

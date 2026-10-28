@@ -36,9 +36,10 @@ internal static class GeneratorHarness
             s_references.Value,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
 
-    public static GeneratorDriver CreateDriver(bool trackSteps = false, string? dialect = null)
+    public static GeneratorDriver CreateDriver(bool trackSteps = false, string? dialect = null, params (string Path, string Text)[] additionalFiles)
         => CSharpGeneratorDriver.Create(
             [new VelQuerySqlGenerator().AsSourceGenerator()],
+            additionalTexts: [.. additionalFiles.Select(f => (AdditionalText)new InMemoryAdditionalText(f.Path, f.Text))],
             parseOptions: ParseOptions,
             optionsProvider: dialect is null ? null : new DialectOptionsProvider(dialect),
             driverOptions: new GeneratorDriverOptions(IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: trackSteps));
@@ -46,9 +47,10 @@ internal static class GeneratorHarness
     /// <summary>Runs the generator and returns its result plus the updated compilation.</summary>
     /// <param name="compilation">The input compilation.</param>
     /// <param name="dialect">Value of the <c>VelQuerySqlDialect</c> MSBuild property, or null when unset.</param>
-    public static (GeneratorRunResult Result, Compilation Output) Run(CSharpCompilation compilation, string? dialect = null)
+    /// <param name="additionalFiles">Additional files, for example a <c>*.vqschema.json</c> schema snapshot.</param>
+    public static (GeneratorRunResult Result, Compilation Output) Run(CSharpCompilation compilation, string? dialect = null, params (string Path, string Text)[] additionalFiles)
     {
-        var driver = CreateDriver(dialect: dialect).RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
+        var driver = CreateDriver(dialect: dialect, additionalFiles: additionalFiles).RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
         return (driver.GetRunResult().Results.Single(), output);
     }
 
@@ -58,8 +60,12 @@ internal static class GeneratorHarness
 
     /// <summary>Generator diagnostics plus analyzer diagnostics for a project with the given SQL dialect.</summary>
     public static IReadOnlyList<Diagnostic> GetVelQueryDiagnostics(CSharpCompilation compilation, string? dialect, params DiagnosticAnalyzer[] analyzers)
+        => GetVelQueryDiagnostics(compilation, dialect, [], analyzers);
+
+    /// <summary>Generator and analyzer diagnostics with additional files (schema snapshots).</summary>
+    public static IReadOnlyList<Diagnostic> GetVelQueryDiagnostics(CSharpCompilation compilation, string? dialect, (string Path, string Text)[] additionalFiles, params DiagnosticAnalyzer[] analyzers)
     {
-        var (result, output) = Run(compilation, dialect);
+        var (result, output) = Run(compilation, dialect, additionalFiles);
         var diagnostics = new List<Diagnostic>(result.Diagnostics);
         if (result.Exception is not null)
         {
@@ -80,6 +86,15 @@ internal static class GeneratorHarness
             .Where(d => d.Severity >= DiagnosticSeverity.Warning)
             .Select(d => d.ToString())
             .ToArray();
+
+    private sealed class InMemoryAdditionalText(string path, string text) : AdditionalText
+    {
+        private readonly Microsoft.CodeAnalysis.Text.SourceText _text = Microsoft.CodeAnalysis.Text.SourceText.From(text);
+
+        public override string Path { get; } = path;
+
+        public override Microsoft.CodeAnalysis.Text.SourceText GetText(System.Threading.CancellationToken cancellationToken = default) => _text;
+    }
 
     /// <summary>Supplies <c>build_property.VelQuerySqlDialect</c> as MSBuild would through CompilerVisibleProperty.</summary>
     private sealed class DialectOptionsProvider(string dialect) : AnalyzerConfigOptionsProvider

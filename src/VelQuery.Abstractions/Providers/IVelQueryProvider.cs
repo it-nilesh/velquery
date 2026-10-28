@@ -75,4 +75,12 @@ public enum ProviderCapabilities
     /// type instead of applying <c>ValueConverter</c> to <c>GetValue()</c>. Strict NULL handling is unchanged.
     /// </summary>
     NativeConversions = 1 << 4,
+
+    /// <summary>
+    /// The driver sends a <see cref="System.Data.Common.DbBatch"/> in one round trip and reports each batch command's
+    /// affected rows (<see cref="System.Data.Common.DbBatchCommand.RecordsAffected"/>). Without it, <c>VelQueryBatch</c>
+    /// runs its commands one at a time on one connection, so counts are never guessed (MySqlConnector reports only the
+    /// batch total).
+    /// </summary>
+    Batches = 1 << 5,
 }

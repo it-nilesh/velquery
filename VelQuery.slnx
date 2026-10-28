@@ -10,6 +10,7 @@
     <Project Path="src/VelQuery.MongoDB.Generators/VelQuery.MongoDB.Generators.csproj" />
     <Project Path="src/VelQuery.Generators/VelQuery.Generators.csproj" />
     <Project Path="src/VelQuery.Analyzers/VelQuery.Analyzers.csproj" />
+    <Project Path="src/VelQuery.Cli/VelQuery.Cli.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/VelQuery.Core.UnitTests/VelQuery.Core.UnitTests.csproj" />
@@ -23,6 +24,7 @@
     <Project Path="tests/VelQuery.MongoDB.Generators.Tests/VelQuery.MongoDB.Generators.Tests.csproj" />
     <Project Path="tests/VelQuery.MongoDB.IntegrationTests/VelQuery.MongoDB.IntegrationTests.csproj" />
     <Project Path="tests/VelQuery.NativeAot.Smoke/VelQuery.NativeAot.Smoke.csproj" />
+    <Project Path="tests/VelQuery.Cli.Tests/VelQuery.Cli.Tests.csproj" />
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/QuickStart/QuickStart.Api/QuickStart.Api.csproj" />

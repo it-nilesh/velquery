@@ -33,6 +33,17 @@ public sealed class SqlDialectTests
     public void MySql_rules(string sql, string expected) => Assert.Equal(expected, Names(sql, SqlDialect.MySql));
 
     [Theory]
+    [InlineData("DECLARE @n int = 1; SELECT Id FROM t WHERE Id >= @n AND Name = @Real", "Real")]
+    [InlineData("DECLARE @a int = @Limit, @b nvarchar(10) = N'x'; SELECT @a, @B, @Real", "Limit,Real")]
+    [InlineData("DECLARE @t TABLE (Id int); INSERT INTO @t SELECT Id FROM x WHERE y = @Real; SELECT * FROM @t", "Real")]
+    [InlineData("DECLARE @n int = (SELECT COUNT(*) FROM t WHERE k = @Real) SELECT @n", "Real")]
+    [InlineData("DECLARE c CURSOR FOR SELECT Id FROM t WHERE k = @Real", "Real")]
+    [InlineData("SELECT Id FROM t WHERE Id = @Real; DECLARE @late int; SET @late = 1", "Real")]
+    [InlineData("DECLARE @a int = CASE WHEN @Real = 1 THEN 1 END, @b int = 0; SELECT @a + @b", "Real")]
+    public void SqlServer_declared_variables_are_not_parameters(string sql, string expected)
+        => Assert.Equal(expected, Names(sql, SqlDialect.SqlServer));
+
+    [Theory]
     [InlineData("SELECT $$ it's @x $$, @Real", "Real")]
     [InlineData("SELECT $fn$ @x $ $fn$, @Real", "Real")]
     [InlineData(@"SELECT E'it\'s @x', e'@y', @Real", "Real")]

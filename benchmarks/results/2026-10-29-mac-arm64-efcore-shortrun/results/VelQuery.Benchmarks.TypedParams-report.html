@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>VelQuery.Benchmarks.TypedParams-20261029-004909</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, macOS Tahoe 26.5.1 (25F80) [Darwin 25.5.0]
+Apple M5 Pro, 1 CPU, 15 logical and 15 physical cores
+.NET SDK 10.0.201
+  [Host]   : .NET 10.0.5 (10.0.5, 10.0.526.15411), Arm64 RyuJIT armv8.0-a
+  ShortRun : .NET 10.0.5 (10.0.5, 10.0.526.15411), Arm64 RyuJIT armv8.0-a
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  Categories=typed-params  
+</code></pre>
+
+<table>
+<thead><tr><th>Method        </th><th>Mean</th><th>Error</th><th>StdDev</th><th>P95</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>raw-adonet</td><td>343.0 &mu;s</td><td>135.02 &mu;s</td><td>7.40 &mu;s</td><td>350.3 &mu;s</td><td>1.00</td><td>0.03</td><td>0.4883</td><td>7.64 KB</td><td>1.00</td>
+</tr><tr><td>dapper</td><td>346.6 &mu;s</td><td>5.37 &mu;s</td><td>0.29 &mu;s</td><td>346.9 &mu;s</td><td>1.01</td><td>0.02</td><td>0.9766</td><td>10.44 KB</td><td>1.37</td>
+</tr><tr><td>dapper-aot</td><td>348.2 &mu;s</td><td>73.41 &mu;s</td><td>4.02 &mu;s</td><td>352.0 &mu;s</td><td>1.02</td><td>0.02</td><td>0.9766</td><td>8.29 KB</td><td>1.08</td>
+</tr><tr><td>velquery-descriptor</td><td>347.9 &mu;s</td><td>116.87 &mu;s</td><td>6.41 &mu;s</td><td>353.7 &mu;s</td><td>1.01</td><td>0.02</td><td>0.9766</td><td>8.54 KB</td><td>1.12</td>
+</tr><tr><td>velquery-runtime-sql</td><td>348.7 &mu;s</td><td>48.31 &mu;s</td><td>2.65 &mu;s</td><td>350.4 &mu;s</td><td>1.02</td><td>0.02</td><td>0.9766</td><td>9.3 KB</td><td>1.22</td>
+</tr><tr><td>efcore-compiled</td><td>359.7 &mu;s</td><td>53.49 &mu;s</td><td>2.93 &mu;s</td><td>362.3 &mu;s</td><td>1.05</td><td>0.02</td><td>0.9766</td><td>10.91 KB</td><td>1.43</td>
+</tr></tbody></table>
+</body>
+</html>

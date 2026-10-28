@@ -1,0 +1,25 @@
+{
+  "format": "velquery.schema.v1",
+  "dialect": "sqlserver",
+  "databaseLogicalName": "VelQuerySample",
+  "defaultSchema": "dbo",
+  "caseSensitiveTables": false,
+  "caseSensitiveColumns": false,
+  "snapshotSha256": "18473d96a43b31b0cd86276e4fd9a1395946ae0ef07318cd9cf7ce98706728d5",
+  "objects": [
+    {
+      "schema": "dbo",
+      "name": "Products",
+      "kind": "table",
+      "columns": [
+        { "name": "Id", "dbType": "int", "nullable": false, "hasDefault": true },
+        { "name": "Name", "dbType": "nvarchar", "maxLength": 200, "nullable": false },
+        { "name": "Description", "dbType": "nvarchar", "maxLength": 1000, "nullable": true },
+        { "name": "Price", "dbType": "decimal", "precision": 18, "scale": 2, "nullable": false },
+        { "name": "Stock", "dbType": "int", "nullable": false },
+        { "name": "CreatedAt", "dbType": "datetimeoffset", "nullable": false, "hasDefault": true }
+      ]
+    }
+  ],
+  "routines": []
+}

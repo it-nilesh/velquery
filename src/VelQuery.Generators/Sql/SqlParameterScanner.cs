@@ -193,6 +193,11 @@ internal static class SqlParameterScanner
             }
         }
 
+        if (dialect == SqlDialect.SqlServer)
+        {
+            RemoveDeclaredVariables(sql, placeholders);
+        }
+
         if (mySql)
         {
             RemoveUserVariables(sql, placeholders);
@@ -229,6 +234,76 @@ internal static class SqlParameterScanner
             placeholders.RemoveAll(p => assigned.Contains(p.Name));
         }
     }
+
+    /// <summary>
+    /// T-SQL local variables (<c>DECLARE @n int = 1, @t TABLE (...)</c>) belong to the batch, not to the caller: every
+    /// occurrence of a declared name is a variable, not a parameter. A placeholder used in a declaration's initializer
+    /// (<c>DECLARE @n int = @limit</c>) is still a parameter. Names compare case-insensitively, like T-SQL variables.
+    /// </summary>
+    private static void RemoveDeclaredVariables(string sql, List<SqlPlaceholder> placeholders)
+    {
+        var tokens = SqlTokenizer.Tokenize(sql, SqlDialect.SqlServer);
+        if (tokens is null || placeholders.Count == 0)
+        {
+            return;
+        }
+
+        var declared = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < tokens.Count; i++)
+        {
+            if (!tokens[i].IsWord("DECLARE"))
+            {
+                continue;
+            }
+
+            // Each declaration starts with @name; it runs to a top-level comma, or ends at ';' or the next statement.
+            var expectName = true;
+            var depth = 0;
+            for (i++; i < tokens.Count; i++)
+            {
+                var token = tokens[i];
+                if (token.IsPunctuation('('))
+                {
+                    depth++;
+                }
+                else if (token.IsPunctuation(')'))
+                {
+                    depth--;
+                }
+                else if (depth == 0 && (token.IsPunctuation(';') || (token.Kind == SqlTokenKind.Word && StatementStarts.Contains(token.Text))))
+                {
+                    i--; // Let the outer loop see a following DECLARE.
+                    break;
+                }
+                else if (depth == 0 && token.IsPunctuation(','))
+                {
+                    expectName = true;
+                    continue;
+                }
+                else if (expectName && token.Kind == SqlTokenKind.Parameter && !token.Text.StartsWith("@@", StringComparison.Ordinal))
+                {
+                    declared.Add(token.Text.Substring(1));
+                }
+
+                expectName = false;
+            }
+        }
+
+        if (declared.Count > 0)
+        {
+            placeholders.RemoveAll(p => declared.Contains(p.Name));
+        }
+    }
+
+    /// <summary>
+    /// Words that start a new T-SQL statement and so end a DECLARE without a semicolon. Words that also occur inside
+    /// expressions (END of CASE ... END) are deliberately absent.
+    /// </summary>
+    private static readonly HashSet<string> StatementStarts = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "SELECT", "INSERT", "UPDATE", "DELETE", "MERGE", "SET", "IF", "WHILE", "BEGIN", "EXEC", "EXECUTE",
+        "DECLARE", "WITH", "RETURN", "PRINT", "OPEN", "FETCH", "CLOSE", "DEALLOCATE", "THROW", "RAISERROR", "TRUNCATE",
+    };
 
     private static string PreviousWord(string sql, int index)
     {

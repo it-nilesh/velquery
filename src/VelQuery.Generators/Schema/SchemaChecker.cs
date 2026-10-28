@@ -1,0 +1,848 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using VelQuery.Generators.Diagnostics;
+using VelQuery.Generators.Infrastructure;
+using VelQuery.Generators.Sql;
+
+namespace VelQuery.Generators.Schema;
+
+/// <summary>All usable snapshots of the project, as one pipeline value; equality is the snapshots'.</summary>
+internal sealed class SchemaCatalogSet : IEquatable<SchemaCatalogSet>
+{
+    public SchemaCatalogSet(EquatableArray<SchemaSnapshot> snapshots)
+    {
+        Snapshots = snapshots;
+        Catalogs = snapshots.Select(s => new SchemaCatalog(s)).ToList();
+    }
+
+    public EquatableArray<SchemaSnapshot> Snapshots { get; }
+
+    public IReadOnlyList<SchemaCatalog> Catalogs { get; }
+
+    public bool Equals(SchemaCatalogSet? other) => other is not null && Snapshots.Equals(other.Snapshots);
+
+    public override bool Equals(object? obj) => Equals(obj as SchemaCatalogSet);
+
+    public override int GetHashCode() => Snapshots.GetHashCode();
+}
+
+/// <summary>
+/// The snapshot plus name lookups, as one incremental pipeline value. Equality is the snapshot's, so contracts are
+/// re-checked only when the snapshot content changes.
+/// </summary>
+internal sealed class SchemaCatalog : IEquatable<SchemaCatalog>
+{
+    private readonly Dictionary<string, List<SchemaObject>> _byName;
+
+    public SchemaCatalog(SchemaSnapshot snapshot)
+    {
+        Snapshot = snapshot;
+        _byName = new Dictionary<string, List<SchemaObject>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var obj in snapshot.Objects)
+        {
+            if (!_byName.TryGetValue(obj.Name, out var list))
+            {
+                _byName[obj.Name] = list = [];
+            }
+
+            list.Add(obj);
+        }
+    }
+
+    public SchemaSnapshot Snapshot { get; }
+
+    public SqlDialect Dialect => Snapshot.Dialect;
+
+    public IEnumerable<string> ObjectNames => Snapshot.Objects.Select(o => o.Name);
+
+    /// <summary>Objects whose name matches (case per snapshot), optionally in a given schema.</summary>
+    public IEnumerable<SchemaObject> Find(SqlName name, SqlName? schema)
+    {
+        if (!_byName.TryGetValue(name.Text, out var candidates))
+        {
+            return [];
+        }
+
+        return candidates.Where(o => SameTableName(name, o.Name) && (schema is null || (o.Schema is not null && SameTableName(schema, o.Schema))));
+    }
+
+    /// <summary>Compares an identifier as written with a catalog name, applying PostgreSQL case folding.</summary>
+    public bool SameTableName(SqlName written, string catalog) => Same(written, catalog, Snapshot.CaseSensitiveTables);
+
+    public bool SameColumnName(SqlName written, string catalog) => Same(written, catalog, Snapshot.CaseSensitiveColumns);
+
+    public string Fold(SqlName name) => Dialect == SqlDialect.PostgreSql && !name.Quoted ? name.Text.ToLowerInvariant() : name.Text;
+
+    private bool Same(SqlName written, string catalog, bool caseSensitive)
+        => string.Equals(Fold(written), catalog, caseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase);
+
+    public bool Equals(SchemaCatalog? other) => other is not null && Snapshot.Equals(other.Snapshot);
+
+    public override bool Equals(object? obj) => Equals(obj as SchemaCatalog);
+
+    public override int GetHashCode() => Snapshot.GetHashCode();
+}
+
+/// <summary>
+/// Checks one contract's <see cref="QueryShape"/> against the schema snapshot (ADR-0006, VQ-FR-037): referenced
+/// tables and columns exist (VQ1005), the result supplies what the row type needs with compatible types and
+/// nullability (VQ1025–VQ1028), and writes respect required and generated columns (VQ1029, VQ1030). Whatever cannot
+/// be resolved with certainty is skipped, never reported.
+/// </summary>
+internal sealed class SchemaChecker
+{
+    private readonly SchemaCheckInput _input;
+    private readonly QueryShape _shape;
+    private readonly SchemaCatalog _catalog;
+    private readonly List<DiagnosticInfo> _diagnostics = [];
+    private readonly HashSet<string> _reported = new(StringComparer.Ordinal);
+    private readonly TableResolution[] _tables;
+    private readonly Dictionary<int, List<OutputInfo>?> _outputs = [];
+    private readonly HashSet<int> _resolving = [];
+
+    private SchemaChecker(SchemaCheckInput input, QueryShape shape, SchemaCatalog catalog)
+    {
+        _input = input;
+        _shape = shape;
+        _catalog = catalog;
+        _tables = shape.Tables.Select(ResolveTable).ToArray();
+    }
+
+    public static EquatableArray<DiagnosticInfo> Check(SchemaCheckInput input, SchemaCatalogSet? set)
+    {
+        if (set is null || set.Catalogs.Count == 0)
+        {
+            return EquatableArray<DiagnosticInfo>.Empty;
+        }
+
+        SchemaCatalog catalog;
+        if (input.SchemaName is { } wanted)
+        {
+            var named = set.Catalogs.FirstOrDefault(c => string.Equals(c.Snapshot.Name, wanted, StringComparison.OrdinalIgnoreCase));
+            if (named is null)
+            {
+                var available = string.Join(", ", set.Catalogs.Select(c => "'" + c.Snapshot.Name + "'").OrderBy(n => n, StringComparer.Ordinal));
+                return new[] { DiagnosticInfo.Create(Descriptors.UnknownSchemaName, input.SqlLocation, input.QueryId, wanted, available) }.ToEquatableArray();
+            }
+
+            catalog = named;
+        }
+        else
+        {
+            // Without a name, the one snapshot of the query's dialect is used.
+            var matching = set.Catalogs.Where(c => c.Dialect == input.Dialect).ToList();
+            if (matching.Count > 1)
+            {
+                return Note(input, $"{matching.Count} schema snapshots match the {SqlDialects.DisplayName(input.Dialect)} dialect ({string.Join(", ", matching.Select(c => c.Snapshot.Name))}); set Schema = \"name\" on [VelQuerySql]");
+            }
+
+            catalog = matching.Count == 1 ? matching[0] : set.Catalogs[0];
+        }
+
+        if (input.Dialect != catalog.Dialect)
+        {
+            return Note(input, $"the schema snapshot is for {SqlDialects.DisplayName(catalog.Dialect)}, but the query uses the {SqlDialects.DisplayName(input.Dialect)} dialect");
+        }
+
+        try
+        {
+            if (input.StoredProcedure)
+            {
+                return CheckProcedure(input, catalog);
+            }
+
+            var shape = QueryShapeBuilder.Build(input.Sql, input.Dialect, input.Map, input.SqlLocation, out var reason);
+            if (shape is null)
+            {
+                return reason is null ? EquatableArray<DiagnosticInfo>.Empty : Note(input, reason);
+            }
+
+            var checker = new SchemaChecker(input, shape, catalog);
+            checker.Run();
+            return checker._diagnostics.ToEquatableArray();
+        }
+#pragma warning disable CA1031 // The checks are best-effort: a defect in them must cost one check, never the build.
+        catch (Exception ex) when (ex is not OperationCanceledException)
+#pragma warning restore CA1031
+        {
+            return Note(input, $"the SQL could not be analyzed ({ex.GetType().Name}); please report this issue");
+        }
+    }
+
+    /// <summary>
+    /// Stored procedure contracts (<c>CommandType.StoredProcedure</c>): the procedure must exist and every parameter
+    /// the contract binds must be one of its parameters. Omitted parameters are not reported: SQL Server does not expose
+    /// whether a T-SQL parameter has a default.
+    /// </summary>
+    private static EquatableArray<DiagnosticInfo> CheckProcedure(SchemaCheckInput input, SchemaCatalog catalog)
+    {
+        if (!catalog.Snapshot.RoutinesKnown)
+        {
+            return Note(input, "the schema snapshot lists no stored procedures; regenerate it with 'velquery schema snapshot'");
+        }
+
+        var tokens = SqlTokenizer.Tokenize(input.Sql, input.Dialect);
+        var parts = new List<SqlName>();
+        for (var i = 0; tokens is not null && i < tokens.Count; i++)
+        {
+            var token = tokens[i];
+            if (i % 2 == 0 && token.IsName)
+            {
+                parts.Add(new SqlName(token.Text, token.Kind == SqlTokenKind.QuotedIdentifier));
+            }
+            else if (i % 2 == 1 && token.IsPunctuation('.'))
+            {
+                continue;
+            }
+            else
+            {
+                parts.Clear();
+                break;
+            }
+        }
+
+        if (parts.Count is 0 or > 3 || tokens!.Count != parts.Count * 2 - 1)
+        {
+            return Note(input, "the stored procedure name could not be read");
+        }
+
+        if (parts.Count == 3)
+        {
+            return EquatableArray<DiagnosticInfo>.Empty; // Cross-database name: not described by this snapshot.
+        }
+
+        var name = parts[parts.Count - 1];
+        var schema = parts.Count == 2 ? parts[0] : null;
+        var matching = catalog.Snapshot.Routines
+            .Where(r => catalog.SameTableName(name, r.Name) && (schema is null || (r.Schema is not null && catalog.SameTableName(schema, r.Schema))))
+            .ToList();
+
+        // CommandType.StoredProcedure calls procedures (PostgreSQL and MySQL use CALL, which cannot call a function).
+        var routines = matching.Where(r => r.Kind == "procedure").ToList();
+        var display = schema is null ? name.Text : schema.Text + "." + name.Text;
+        if (routines.Count == 0)
+        {
+            if (matching.Count == 0 && (name.Text.StartsWith("sp_", StringComparison.OrdinalIgnoreCase) || name.Text.StartsWith("xp_", StringComparison.OrdinalIgnoreCase)))
+            {
+                return EquatableArray<DiagnosticInfo>.Empty; // System procedures live outside the user schema.
+            }
+
+            var detail = matching.Count > 0
+                ? $"; '{matching[0].Display}' is a {matching[0].Kind}, which a stored procedure contract cannot call: query it with SQL (SELECT * FROM {matching[0].Name}(...)) instead"
+                : Suggest(name.Text, catalog.Snapshot.Routines.Where(r => r.Kind == "procedure").Select(r => r.Name));
+            return new[]
+            {
+                DiagnosticInfo.Create(Descriptors.NotInSnapshot, input.SqlLocation, input.QueryId, $"stored procedure '{display}'", detail),
+            }.ToEquatableArray();
+        }
+
+        // Overloads (PostgreSQL functions) are one name: a parameter is valid if any overload declares it.
+        var known = routines.SelectMany(r => r.Parameters).Select(p => p.Name.TrimStart('@')).ToList();
+        var diagnostics = new List<DiagnosticInfo>();
+        foreach (var parameter in input.Parameters)
+        {
+            if (!known.Any(k => string.Equals(k, parameter, StringComparison.OrdinalIgnoreCase)))
+            {
+                diagnostics.Add(DiagnosticInfo.Create(Descriptors.NotInSnapshot, input.SqlLocation, input.QueryId,
+                    $"parameter '@{parameter}' of stored procedure '{routines[0].Display}'", Suggest(parameter, known)));
+            }
+        }
+
+        return diagnostics.ToEquatableArray();
+    }
+
+    private static EquatableArray<DiagnosticInfo> Note(SchemaCheckInput input, string reason)
+        => new[] { DiagnosticInfo.Create(Descriptors.NotSchemaChecked, input.SqlLocation, input.QueryId, reason) }.ToEquatableArray();
+
+    private void Run()
+    {
+        var notes = new List<string>(_shape.Unsupported);
+        for (var i = 0; i < _shape.Tables.Count; i++)
+        {
+            var table = _shape.Tables[i];
+            if (_tables[i].Status == Status.Missing)
+            {
+                Report(Descriptors.NotInSnapshot, table.Location, $"table or view '{table.Display}'", Suggest(table.Name.Text, _catalog.ObjectNames));
+            }
+        }
+
+        for (var s = 0; s < _shape.Scopes.Count; s++)
+        {
+            foreach (var reference in _shape.Scopes[s].References)
+            {
+                CheckReference(s, reference);
+            }
+        }
+
+        foreach (var insert in _shape.Inserts)
+        {
+            CheckInsert(insert);
+        }
+
+        if (_input.ReturnsRows && _shape.Result >= 0 && _input.Members.Count > 0)
+        {
+            var outputs = Outputs(_shape.Result);
+            if (outputs is null)
+            {
+                if (!_input.Scalar)
+                {
+                    notes.Add("its result columns could not be determined");
+                }
+            }
+            else
+            {
+                CheckResult(outputs);
+            }
+        }
+
+        if (notes.Count > 0)
+        {
+            _diagnostics.Add(DiagnosticInfo.Create(Descriptors.NotSchemaChecked, _input.SqlLocation, _input.QueryId, string.Join("; ", notes)));
+        }
+    }
+
+    // ------------------------------------------------------------------ references
+
+    private void CheckReference(int scope, ColumnReference reference)
+    {
+        var (status, column, searched, candidates) = Resolve(scope, reference);
+        if (status == Status.Missing)
+        {
+            // An unqualified, unquoted name may be a keyword or niladic function this recognizer does not know
+            // (UTC_TIMESTAMP, GLOB, ...), so it is reported only when it is certainly a column (a written column) or
+            // looks like a misspelling of one. Qualified (t.col) and quoted names are always columns.
+            var suggestion = Suggest(reference.Column.Text, candidates);
+            var certain = reference.Parts.Count > 1 || reference.Column.Quoted || reference.Write || suggestion.Length > 0;
+            if (certain)
+            {
+                var where = searched.Count == 0 ? string.Empty : $" in {string.Join(", ", searched.Select(n => "'" + n + "'"))}";
+                Report(Descriptors.NotInSnapshot, reference.Location, $"column '{reference.Display}'{where}", suggestion);
+            }
+            else
+            {
+                // Still visible in the IDE, so a dropped or renamed column is not silently accepted, but never a build failure.
+                var tables = searched.Count == 0 ? "the query's tables" : string.Join(", ", searched.Select(n => "'" + n + "'"));
+                Report(Descriptors.PossiblyUnknownColumn, reference.Location, reference.Display, tables);
+            }
+        }
+        else if (status == Status.Found && reference.Write && column!.Generated)
+        {
+            Report(Descriptors.WritesGeneratedColumn, reference.Location, column.Name, column.Origin);
+        }
+    }
+
+    private (Status Status, ColumnInfo? Column, List<string> Searched, List<string> Candidates) Resolve(int scope, ColumnReference reference)
+    {
+        var searched = new List<string>();
+        var candidates = new List<string>();
+        var parts = reference.Parts;
+        var unknown = (Status.Unknown, (ColumnInfo?)null, searched, candidates);
+        var name = reference.Column;
+        if (!name.Quoted && SqlKeywords.SystemColumns.Contains(name.Text))
+        {
+            return unknown; // rowid, ctid, xmin: real columns the catalog does not list.
+        }
+
+        if (parts.Count == 1)
+        {
+            if (reference.Target >= 0)
+            {
+                var columns = SourceColumns(scope, reference.Target);
+                if (columns is null)
+                {
+                    return unknown;
+                }
+
+                var target = _shape.Scopes[scope].Sources[reference.Target];
+                searched.Add(SourceDisplay(target));
+                candidates.AddRange(columns.Select(c => c.Name));
+                var match = columns.FirstOrDefault(c => _catalog.SameColumnName(name, c.Name));
+                return match is null ? (Status.Missing, null, searched, candidates) : (Status.Found, match, searched, candidates);
+            }
+
+            var anyUnknown = false;
+            var anySource = false;
+            for (var s = scope; s >= 0; s = _shape.Scopes[s].Parent)
+            {
+                var block = _shape.Scopes[s];
+                if (block.Opaque)
+                {
+                    return unknown;
+                }
+
+                for (var k = 0; k < block.Sources.Count; k++)
+                {
+                    var source = block.Sources[k];
+                    anySource = true;
+                    var columns = SourceColumns(s, k);
+                    if (columns is null)
+                    {
+                        anyUnknown = true;
+                        continue;
+                    }
+
+                    var match = columns.FirstOrDefault(c => _catalog.SameColumnName(name, c.Name));
+                    if (match is not null)
+                    {
+                        return (Status.Found, match, searched, candidates);
+                    }
+
+                    if (!source.Pseudo)
+                    {
+                        if (s == scope)
+                        {
+                            searched.Add(SourceDisplay(source));
+                        }
+
+                        candidates.AddRange(columns.Select(c => c.Name));
+                    }
+                }
+
+                // A whole-row reference (PostgreSQL SELECT t FROM t) or a select-list alias (ORDER BY total).
+                if (block.Sources.Any(src => src.Alias is { } alias && _catalog.SameTableName(name, _catalog.Fold(alias))) ||
+                    block.Outputs.Any(o => IsAlias(o) && string.Equals(_catalog.Fold(o.Name!), _catalog.Fold(name), StringComparison.OrdinalIgnoreCase)))
+                {
+                    return unknown;
+                }
+            }
+
+            return anyUnknown || !anySource ? unknown : (Status.Missing, null, searched, candidates);
+        }
+
+        if (parts.Count == 2)
+        {
+            var qualifier = parts[0];
+            for (var s = scope; s >= 0; s = _shape.Scopes[s].Parent)
+            {
+                var block = _shape.Scopes[s];
+                for (var k = 0; k < block.Sources.Count; k++)
+                {
+                    var source = block.Sources[k];
+                    if (source.Alias is not { } alias || !_catalog.SameTableName(qualifier, _catalog.Fold(alias)))
+                    {
+                        continue;
+                    }
+
+                    var columns = SourceColumns(s, k);
+                    if (columns is null)
+                    {
+                        return unknown;
+                    }
+
+                    var match = columns.FirstOrDefault(c => _catalog.SameColumnName(name, c.Name));
+                    searched.Add(SourceDisplay(source));
+                    candidates.AddRange(columns.Select(c => c.Name));
+                    return match is null ? (Status.Missing, null, searched, candidates) : (Status.Found, match, searched, candidates);
+                }
+            }
+
+            return unknown; // Not a source of this query: a schema-qualified function, pseudo-table or outer name.
+        }
+
+        if (parts.Count == 3)
+        {
+            for (var s = scope; s >= 0; s = _shape.Scopes[s].Parent)
+            {
+                var block = _shape.Scopes[s];
+                for (var k = 0; k < block.Sources.Count; k++)
+                {
+                    var source = block.Sources[k];
+                    if (source.Kind != SourceKind.Table || _shape.Tables[source.Table] is not { Schema: { } schema } table ||
+                        !_catalog.SameTableName(parts[0], _catalog.Fold(schema)) || !_catalog.SameTableName(parts[1], _catalog.Fold(table.Name)))
+                    {
+                        continue;
+                    }
+
+                    var columns = SourceColumns(s, k);
+                    if (columns is null)
+                    {
+                        return unknown;
+                    }
+
+                    var match = columns.FirstOrDefault(c => _catalog.SameColumnName(name, c.Name));
+                    searched.Add(table.Display);
+                    candidates.AddRange(columns.Select(c => c.Name));
+                    return match is null ? (Status.Missing, null, searched, candidates) : (Status.Found, match, searched, candidates);
+                }
+            }
+        }
+
+        return unknown;
+    }
+
+    /// <summary>An output name introduced by an alias (not a plain column's own name), usable in ORDER BY and similar.</summary>
+    private static bool IsAlias(QueryOutput output)
+        => output.Name is not null && (output.Kind == OutputKind.Expression || (output.Kind == OutputKind.Column && output.Name != output.Reference!.Column));
+
+    private string SourceDisplay(QuerySource source)
+        => source.Kind == SourceKind.Table && _tables[source.Table].Object is { } obj ? obj.Display : source.Alias?.Text ?? "?";
+
+    /// <summary>Columns of a source, or null when they cannot be known.</summary>
+    private List<ColumnInfo>? SourceColumns(int scope, int index)
+    {
+        var source = _shape.Scopes[scope].Sources[index];
+        List<ColumnInfo>? columns;
+        switch (source.Kind)
+        {
+            case SourceKind.Table:
+                var obj = _tables[source.Table].Object;
+                if (obj is null)
+                {
+                    return null;
+                }
+
+                columns = obj.Columns.Select(c => new ColumnInfo(c.Name, c.DbType, c.Nullable, c.HasDefault, c.Generated, obj.Display)).ToList();
+                break;
+            case SourceKind.Derived:
+                var outputs = Outputs(source.Scope);
+                if (outputs is null || outputs.Any(o => o.Name is null))
+                {
+                    return null;
+                }
+
+                columns = outputs.Select(o => new ColumnInfo(o.Name!, o.DbType, o.Nullable, false, false, source.Alias?.Text ?? "?")).ToList();
+                break;
+            default:
+                return null;
+        }
+
+        if (source.Renames.Count > 0)
+        {
+            if (source.Renames.Count > columns.Count)
+            {
+                return null;
+            }
+
+            for (var i = 0; i < source.Renames.Count; i++)
+            {
+                columns[i] = columns[i] with { Name = _catalog.Fold(source.Renames[i]) };
+            }
+        }
+
+        if (source.Nullable)
+        {
+            columns = columns.Select(c => c with { Nullable = true }).ToList();
+        }
+
+        return columns;
+    }
+
+    /// <summary>Result columns of a block, or null when they cannot be determined.</summary>
+    private List<OutputInfo>? Outputs(int scope)
+    {
+        if (_outputs.TryGetValue(scope, out var cached))
+        {
+            return cached;
+        }
+
+        if (!_resolving.Add(scope))
+        {
+            return null;
+        }
+
+        var result = ComputeOutputs(scope);
+        _resolving.Remove(scope);
+        _outputs[scope] = result;
+        return result;
+    }
+
+    private List<OutputInfo>? ComputeOutputs(int scope)
+    {
+        var block = _shape.Scopes[scope];
+        if (block.Members.Count > 0)
+        {
+            // Set operation: names come from the first block; types and nullability may differ per block.
+            var first = Outputs(block.Members[0]);
+            return first?.Select(o => o with { DbType = null, Nullable = null }).ToList();
+        }
+
+        if (!block.OutputsKnown || block.Opaque)
+        {
+            return null;
+        }
+
+        var outputs = new List<OutputInfo>();
+        foreach (var output in block.Outputs)
+        {
+            switch (output.Kind)
+            {
+                case OutputKind.Star:
+                    // USING and NATURAL joins return each shared column once, not once per side.
+                    var expanded = new Dictionary<string, int>(_catalog.Snapshot.CaseSensitiveColumns ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase);
+                    for (var k = 0; k < block.Sources.Count; k++)
+                    {
+                        var source = block.Sources[k];
+                        if (source.Pseudo)
+                        {
+                            continue;
+                        }
+
+                        var columns = SourceColumns(scope, k);
+                        if (columns is null)
+                        {
+                            return null;
+                        }
+
+                        foreach (var c in columns)
+                        {
+                            var shared = source.Natural
+                                ? expanded.ContainsKey(c.Name)
+                                : source.Using.Any(u => _catalog.SameColumnName(u, c.Name));
+                            if (!shared)
+                            {
+                                expanded[c.Name] = outputs.Count;
+                                outputs.Add(new OutputInfo(c.Name, c.DbType, c.Nullable, c.Name));
+                            }
+                            else if (expanded.TryGetValue(c.Name, out var first) && (outputs[first].Nullable != false || c.Nullable != false))
+                            {
+                                // The database merges both sides (COALESCE for outer joins): nullability is not known.
+                                outputs[first] = outputs[first] with { Nullable = null };
+                            }
+                        }
+                    }
+
+                    break;
+                case OutputKind.QualifiedStar:
+                    var qualifier = output.Qualifier[output.Qualifier.Count - 1];
+                    var index = -1;
+                    for (var k = 0; k < block.Sources.Count; k++)
+                    {
+                        if (block.Sources[k].Alias is { } alias && _catalog.SameTableName(qualifier, _catalog.Fold(alias)))
+                        {
+                            index = k;
+                            break;
+                        }
+                    }
+
+                    var qualified = index < 0 ? null : SourceColumns(scope, index);
+                    if (qualified is null)
+                    {
+                        return null;
+                    }
+
+                    outputs.AddRange(qualified.Select(c => new OutputInfo(c.Name, c.DbType, c.Nullable, c.Name)));
+                    break;
+                case OutputKind.Column:
+                    var (status, column, _, _) = Resolve(scope, output.Reference!);
+                    var outputName = _catalog.Fold(output.Name!);
+                    if (status == Status.Found && output.Name == output.Reference!.Column)
+                    {
+                        outputName = column!.Name; // Unaliased: the database reports the catalog spelling.
+                    }
+
+                    outputs.Add(status == Status.Found
+                        ? new OutputInfo(outputName, column!.DbType, column.Nullable, output.Reference!.Display)
+                        : new OutputInfo(outputName, null, null, output.Reference!.Display, Broken: status == Status.Missing));
+                    break;
+                default:
+                    outputs.Add(new OutputInfo(output.Name is null ? null : _catalog.Fold(output.Name), null, null, output.Name?.Text ?? "expression"));
+                    break;
+            }
+        }
+
+        return outputs;
+    }
+
+    // ------------------------------------------------------------------ results and writes
+
+    private void CheckResult(List<OutputInfo> outputs)
+    {
+        if (_input.Scalar)
+        {
+            if (outputs.Count == 0)
+            {
+                return;
+            }
+
+            CheckValue(outputs[0], _input.Members[0], "the scalar result");
+            return;
+        }
+
+        // An unnamed expression may supply any member; a column already reported as unknown (VQ1005) would only
+        // repeat that error as a missing member, so both suppress VQ1025 until the SQL is fixed.
+        var unnamed = outputs.Any(o => o.Name is null || o.Broken);
+        foreach (var member in _input.Members)
+        {
+            var matches = outputs.Where(o => o.Name is not null && string.Equals(o.Name, member.Column, StringComparison.OrdinalIgnoreCase)).ToList();
+            var display = ShortName(_input.RowType) + "." + member.Member;
+            if (matches.Count == 0)
+            {
+                if (member.Required && !unnamed)
+                {
+                    var suggestion = Suggest(member.Column, outputs.Select(o => o.Name!));
+                    var detail = suggestion.Length > 0 ? suggestion : "; it returns " + string.Join(", ", outputs.Select(o => o.Name));
+                    Report(Descriptors.MissingResultColumn, _input.SqlLocation, member.Column, display, detail);
+                }
+            }
+            else if (matches.Count > 1)
+            {
+                Report(Descriptors.DuplicateResultColumn, _input.SqlLocation, member.Column, display);
+            }
+            else
+            {
+                CheckValue(matches[0], member, "'" + display + "'");
+            }
+        }
+    }
+
+    private void CheckValue(OutputInfo output, ResultMember member, string display)
+    {
+        if (output.Nullable == true && !member.IsNullable)
+        {
+            Report(Descriptors.NullableToNonNullable, _input.SqlLocation, output.Origin, display);
+        }
+
+        if (output.DbType is { } dbType && !DbTypeRules.CanConvert(DbTypeRules.Classify(_input.Dialect, dbType), member.Kind))
+        {
+            Report(Descriptors.IncompatibleColumnType, _input.SqlLocation, output.Origin, dbType, ShortName(member.Type), display.Trim('\''));
+        }
+    }
+
+    private void CheckInsert(InsertTarget insert)
+    {
+        var source = _shape.Scopes[insert.Scope].Sources[insert.Source];
+        if (source.Kind != SourceKind.Table || _tables[source.Table].Object is not { } obj)
+        {
+            return;
+        }
+
+        foreach (var column in obj.Columns)
+        {
+            if (column.Nullable != false || column.HasDefault || column.Generated)
+            {
+                continue;
+            }
+
+            if (insert.AllDefaults || !insert.Columns.Any(c => _catalog.SameColumnName(c, column.Name)))
+            {
+                Report(Descriptors.InsertMissesRequiredColumn, _shape.Tables[source.Table].Location ?? _input.SqlLocation, obj.Display, column.Name);
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ helpers
+
+    private TableResolution ResolveTable(TableReference table)
+    {
+        if (table.Name.Text.Length == 0 || table.Database is not null || IsSystem(table))
+        {
+            return new TableResolution(Status.Unknown, null);
+        }
+
+        // SQLite's main database has no schema name in the snapshot.
+        var schemaName = _input.Dialect == SqlDialect.Sqlite && table.Schema is { } main && main.Text.Equals("main", StringComparison.OrdinalIgnoreCase) ? null : table.Schema;
+        var matches = _catalog.Find(table.Name, schemaName).ToList();
+        if (matches.Count == 0)
+        {
+            return new TableResolution(Status.Missing, null);
+        }
+
+        // Unqualified names resolve through the default schema first (dbo, public, the MySQL database).
+        var preferred = table.Schema is null && _catalog.Snapshot.DefaultSchema is { } schema
+            ? matches.FirstOrDefault(m => string.Equals(m.Schema, schema, StringComparison.OrdinalIgnoreCase)) ?? matches[0]
+            : matches[0];
+        return new TableResolution(Status.Found, preferred);
+    }
+
+    private bool IsSystem(TableReference table)
+    {
+        var schema = table.Schema is null ? null : _catalog.Fold(table.Schema).ToLowerInvariant();
+        var name = _catalog.Fold(table.Name).ToLowerInvariant();
+        if (schema is "sys" or "information_schema" or "pg_catalog" or "performance_schema" or "mysql" or "temp" && !_catalog.Find(table.Name, table.Schema).Any())
+        {
+            return true;
+        }
+
+        return _input.Dialect switch
+        {
+            SqlDialect.PostgreSql => schema is null && name.StartsWith("pg_", StringComparison.Ordinal),
+            SqlDialect.Sqlite => name.StartsWith("sqlite_", StringComparison.Ordinal) || name.StartsWith("pragma_", StringComparison.Ordinal),
+            SqlDialect.SqlServer => schema is null && name.StartsWith("sys", StringComparison.Ordinal) && !_catalog.Find(table.Name, null).Any(),
+            _ => false,
+        };
+    }
+
+    private void Report(Microsoft.CodeAnalysis.DiagnosticDescriptor descriptor, LocationInfo? location, params string[] arguments)
+    {
+        var all = new string[arguments.Length + 1];
+        all[0] = _input.QueryId;
+        Array.Copy(arguments, 0, all, 1, arguments.Length);
+        var key = descriptor.Id + "|" + location?.Span.ToString() + "|" + string.Join("|", all);
+        if (_reported.Add(key))
+        {
+            _diagnostics.Add(DiagnosticInfo.Create(descriptor, location ?? _input.SqlLocation, all));
+        }
+    }
+
+    private static string ShortName(string? type) => type is null ? string.Empty : type.Replace("global::", string.Empty);
+
+    /// <summary>"; did you mean 'X'?" for the closest candidate within a small edit distance, or empty.</summary>
+    private static string Suggest(string name, IEnumerable<string> candidates)
+    {
+        string? best = null;
+        var bestDistance = int.MaxValue;
+        var lower = name.ToLowerInvariant();
+        var limit = Math.Max(1, Math.Min(3, name.Length / 3));
+        foreach (var candidate in candidates.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(c => c, StringComparer.Ordinal))
+        {
+            var other = candidate.ToLowerInvariant();
+
+            // A truncated name ("Stat" for "Status") is close too: up to three missing trailing characters.
+            var truncated = lower.Length >= 3 && other.Length - lower.Length is > 0 and <= 3 && other.StartsWith(lower, StringComparison.Ordinal);
+            var distance = truncated ? other.Length - lower.Length : Distance(lower, other);
+            if ((truncated || distance <= limit) && distance < bestDistance)
+            {
+                best = candidate;
+                bestDistance = distance;
+            }
+        }
+
+        return best is null ? string.Empty : $"; did you mean '{best}'?";
+    }
+
+    /// <summary>Edit distance where swapping two adjacent letters counts as one edit ("Usres" → "Users").</summary>
+    private static int Distance(string a, string b)
+    {
+        var d = new int[a.Length + 1, b.Length + 1];
+        for (var i = 0; i <= a.Length; i++)
+        {
+            d[i, 0] = i;
+        }
+
+        for (var j = 0; j <= b.Length; j++)
+        {
+            d[0, j] = j;
+        }
+
+        for (var i = 1; i <= a.Length; i++)
+        {
+            for (var j = 1; j <= b.Length; j++)
+            {
+                var cost = a[i - 1] == b[j - 1] ? 0 : 1;
+                d[i, j] = Math.Min(Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1), d[i - 1, j - 1] + cost);
+                if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1])
+                {
+                    d[i, j] = Math.Min(d[i, j], d[i - 2, j - 2] + 1);
+                }
+            }
+        }
+
+        return d[a.Length, b.Length];
+    }
+
+    private enum Status
+    {
+        Unknown,
+        Found,
+        Missing,
+    }
+
+    private sealed record TableResolution(Status Status, SchemaObject? Object);
+
+    /// <summary>A resolved column; <see cref="Origin"/> names its table or derived source for messages.</summary>
+    private sealed record ColumnInfo(string Name, string? DbType, bool? Nullable, bool HasDefault, bool Generated, string Origin);
+
+    /// <summary>A result column. <see cref="Name"/> is null for an unnamed expression; <see cref="Broken"/> marks an unknown column.</summary>
+    private sealed record OutputInfo(string? Name, string? DbType, bool? Nullable, string Origin, bool Broken = false);
+}

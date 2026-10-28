@@ -50,7 +50,8 @@ SQL Server 2022 (x64, `mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04`), 
 | Stored procedures, output / input-output parameters | VQ-FR-023 | Implemented (runtime SQL only) | Descriptors have no output-parameter hook yet; not yet verified |
 | Identifier quoting (`QuoteIdentifier`) | VQ-FR-042 | Implemented | |
 | Prepared commands | VQ-FR-040, D-11 | Not started | Capability flag advertised, not used |
-| Table-valued parameters | §9.4 | Not started | No implicit `IN` list expansion (by design) |
+| Table-valued parameters (`SqlTableType<T>`) | §9.4 | Verified (2026-10-29) | Streamed `SqlDataRecord`s (no `DataTable`), runtime SQL and generated contracts, empty tables, nulls, dates, enums; lossy decimals rejected. No implicit `IN` list expansion (by design) |
+| Command batches (`CreateBatch`, one round trip) | — | Verified (2026-10-29) | `DbBatch`: per-command affected counts, failing command identified by SqlClient, atomic inside a transaction |
 | Generated binders/mappers (`[VelQuerySql]`) | VQ-FR-018/019 | In progress | Generator being built; hand-written descriptor used in benchmarks |
 
 ### Native AOT (SQL Server)
@@ -88,6 +89,7 @@ Status is **preview** until the full parity matrix passes on CI (PRD D-04).
 | Command timeout / caller cancellation | Verified | Timeout → `VelQueryTimeoutException` (NpgsqlException + TimeoutException, or SQLSTATE 57014) |
 | Streaming 100k rows; early exit; pool hygiene | Verified | Pool of 1–2 connections after faults, cancellations and early exits |
 | Session transactions; caller-owned connection/transaction | Verified | |
+| Command batches (`CreateBatch`, one round trip) | Verified (2026-10-29) | `DbBatch` with per-command counts. Npgsql does not name the failing command, so errors carry the batch's query ID |
 | Bulk insert (`BulkInsertAsync`, binary COPY) | Verified | Always all-or-nothing; constraints and triggers always apply. 1M rows ≈ 0.60 s vs 0.58 s raw Npgsql COPY on the dev VM |
 | Generator SQL scanning of PostgreSQL syntax | Verified | `postgresql` dialect (set by the package): dollar quotes, `E'…'`, `::` casts, `ARRAY[…]`, `?`/`@@` operators; `$1` placeholders → VQ1022 |
 | Arrays / `ANY(@ids)` parameters | Not yet verified | Npgsql supports them; no VelQuery-specific API or tests yet |
@@ -110,6 +112,7 @@ macOS arm64. Status **preview** until CI.
 | Caller cancellation | Verified | Before execution, between rows, and mid-statement: the provider's interrupt hook calls `sqlite3_interrupt`, so a single long step (aggregate, sort) stops promptly with SQLITE_INTERRUPT inside `OperationCanceledException`. Lock waits are retried by the driver until `CommandTimeout` |
 | Streaming 100k rows; early exit; connection hygiene | Verified | Every connection disposed (counted); the pool is unbounded and keyed by connection string |
 | Session transactions; caller-owned connection/transaction | Verified | Plain `:memory:` is per connection — use a named shared-cache database or a pinned session |
+| Command batches (`CreateBatch`) | Verified (2026-10-29) | Microsoft.Data.Sqlite has no `DbBatch`: commands run one at a time on one connection (in-process, so no round trip is lost); exact counts and failing command |
 | Bulk insert (`BulkInsertAsync`, one transaction + prepared INSERT) | Verified | All-or-nothing (savepoint inside a session transaction). 1M rows ≈ 0.71 s, same as raw Microsoft.Data.Sqlite; multi-row VALUES measured slower |
 | Generator SQL scanning of SQLite syntax | Verified | `sqlite` dialect (set by the package): `[…]`, backtick and `"…"` identifiers, non-nesting comments; `?`, `:name`, `$name` → VQ1022; differently-cased spellings are bound separately |
 | Generic ADO.NET tier over `SqliteFactory` | Verified | No conversions unless `NativeConversions` is declared; BUSY/interrupt are plain provider errors |
@@ -134,6 +137,7 @@ Testcontainers, macOS arm64. Status **preview** until CI.
 | Lock wait timeout (1205), deadlock (1213), KILL QUERY (1317) | Verified | `VelQueryProviderException` with the error number preserved (concurrency conflicts, not timeouts) |
 | Streaming 100k rows; early exit; pool hygiene (1–2 connections) | Verified | |
 | Session transactions; caller-owned connection/transaction | Verified | |
+| Command batches (`CreateBatch`) | Verified (2026-10-29) | MySqlConnector reports only a batch total, not per-command counts, so commands run one at a time on one connection: exact counts and failing command, but no round-trip saving |
 | Bulk insert (`BulkInsertAsync`, LOAD DATA LOCAL) | Verified | All-or-nothing; skipped rows/warnings fail with `MySqlBulkInsertException` (counts and codes only) and roll back the load (savepoint inside a session transaction); local infile disabled → `VelQueryUnsupportedCapabilityException`. 1M rows ≈ 1.29 s vs 1.32 s raw `MySqlBulkCopy` |
 | Generator SQL scanning of MySQL syntax | Verified | `mysql` dialect (set by the package): backslash escapes, backticks, `#` and `-- ` comments, executable comments, `@user_vars`; `?`/`:name` → VQ1022 |
 | Native AOT | Verified (osx-arm64, 2026-10-20) | Native smoke executable passed against MySQL 8.4 (bulk not exercised: needs local infile); zero trim/AOT warnings |

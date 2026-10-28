@@ -18,8 +18,8 @@ internal enum QueryOperation
     Execute,
 }
 
-/// <summary>Output of the per-contract transform: an optional model plus diagnostics.</summary>
-internal sealed record ContractResult(ContractModel? Model, RowPlan? RowPlan, EquatableArray<DiagnosticInfo> Diagnostics);
+/// <summary>Output of the per-contract transform: an optional model plus diagnostics and the schema-check input.</summary>
+internal sealed record ContractResult(ContractModel? Model, RowPlan? RowPlan, EquatableArray<DiagnosticInfo> Diagnostics, Schema.SchemaCheckInput? SchemaCheck);
 
 /// <summary>One <see cref="ContractResult"/> per SQL dialect, indexed by <c>SqlDialect</c>.</summary>
 internal sealed record ContractVariants(EquatableArray<ContractResult> Results);

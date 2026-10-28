@@ -26,7 +26,7 @@ public sealed class SqlServerProvider : IVelQueryProvider
 
     /// <inheritdoc />
     public ProviderCapabilities Capabilities =>
-        ProviderCapabilities.MultipleResults | ProviderCapabilities.StoredProcedures | ProviderCapabilities.OutputParameters;
+        ProviderCapabilities.MultipleResults | ProviderCapabilities.StoredProcedures | ProviderCapabilities.OutputParameters | ProviderCapabilities.Batches;
 
     /// <inheritdoc />
     public string FormatParameterName(string name) => "@" + name;
@@ -41,6 +41,15 @@ public sealed class SqlServerProvider : IVelQueryProvider
         ArgumentNullException.ThrowIfNull(parameter);
         if (parameter is not SqlParameter sql)
         {
+            return;
+        }
+
+        if (value is SqlTableValue table)
+        {
+            // Table-valued parameter: streamed records, or null for an empty table.
+            sql.SqlDbType = SqlDbType.Structured;
+            sql.TypeName = table.TypeName;
+            sql.Value = table.Records;
             return;
         }
 

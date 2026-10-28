@@ -14,6 +14,7 @@ five working database integrations, a source generator per query language, bench
 | SQL providers: SQL Server, PostgreSQL, MySQL/MariaDB, SQLite + generic ADO.NET tier | Done — **Preview** |
 | MongoDB adapter (first non-relational database) | Done — **Preview** |
 | Build-time checks: `[VelQuerySql]` (VQ1xxx, dialect-aware) and `[VelQueryMongo*]` (VQ2xxx) | Done |
+| Schema-checked SQL: snapshot export (`velquery` tool), build-time table/column/type/nullability checks, drift check | Done — verified end to end on all four SQL engines |
 | Native bulk insert for every database | Done |
 | Native AOT | Verified for SQLite, PostgreSQL, MySQL; blocked for SQL Server and MongoDB by their drivers |
 | CI pipeline | Written, **not run** (repository not hosted) |
@@ -33,8 +34,9 @@ production-ready until it runs in CI against real servers and passes the PRD's r
 | `VelQuery.MySql` | MySqlConnector provider (MySQL and MariaDB), LOAD DATA bulk insert with silent-row-drop protection |
 | `VelQuery.Sqlite` | Microsoft.Data.Sqlite provider, native type conversions, statement interruption on cancel |
 | `VelQuery.MongoDB` | MongoDB adapter: typed contracts, generated BSON serializers, transactions, command-based writes |
-| `VelQuery.Generators` / `VelQuery.MongoDB.Generators` / `VelQuery.Analyzers` | Build-time code generation and diagnostics (35 rules) |
-| `samples/QuickStart` | Minimal API + data library with a repository layer |
+| `VelQuery.Generators` / `VelQuery.MongoDB.Generators` / `VelQuery.Analyzers` | Build-time code generation and diagnostics (44 rules) |
+| `VelQuery.Cli` | `velquery` tool: schema snapshot export and drift diff (ADR-0006) |
+| `samples/QuickStart` | Minimal API + data library with a repository layer and a committed schema snapshot |
 | `benchmarks/` | BenchmarkDotNet suites plus CPU, allocation and bulk profiles |
 
 Size: about 14,700 lines of library code and 17,800 lines of tests; 38 commits; 12 architecture decision records.
@@ -63,7 +65,7 @@ Size: about 14,700 lines of library code and 17,800 lines of tests; 38 commits; 
 |---|---|---|---|
 | 1 | Host the repository (GitHub) | Product owner | CI cannot run; nothing can move from "Preview" to "Verified"; no backup |
 | 2 | Run the suite on real SQL Server 2022 (x64) | Engineering (needs #1) | All SQL Server tests ran on Azure SQL Edge on ARM64 |
-| 3 | License decision (Apache-2.0 proposed) | Legal | Packages declare Apache-2.0, but no LICENSE file exists |
+| 3 | ~~License decision~~ | Done | Apache-2.0 adopted: `LICENSE` and `NOTICE` added (2026-10-29) |
 | 4 | Trademark and NuGet name clearance for "VelQuery" | Legal | PRD risk item |
 | 5 | Design partners (3–5 teams) and API freeze | Product owner | Required for Gate D |
 
@@ -71,5 +73,7 @@ Size: about 14,700 lines of library code and 17,800 lines of tests; 38 commits; 
 
 1. Host the repository and let CI run (build, all suites on x64 Linux with SQL Server 2022, AOT smoke on three OSes).
 2. Publish a signed 0.1.0-alpha to a private feed and onboard the first design partner with the QuickStart sample.
-3. Add EF Core to the benchmarks so comparisons cover the most common alternative.
-4. Round-trip features that cut database trips further: table-valued parameters and `DbBatch`.
+3. A full benchmark run (default job) on an uncontended x64 SQL Server 2022 host, to resolve time against EF Core and
+   the open stream-100k gap. EF Core is now in the suite: it allocates 1.3–2.6× VelQuery per query.
+4. Done since the last report: EF Core benchmarks, command batches (`DbBatch`), SQL Server table-valued parameters,
+   schema checks for stored procedures and several databases per project.

@@ -10,6 +10,9 @@ strict runtime semantics and native bulk ingestion. Not an ORM.
 ## Why VelQuery
 
 - **Mistakes fail the build.** A misspelled `@parameter` is error VQ1001; SQL built by string interpolation is VQ1008.
+- **SQL checked against your real schema.** Export a schema snapshot once (`velquery schema snapshot`) and the build
+  reports unknown tables and columns, result columns your types need, nullable and type mismatches, and INSERTs that
+  miss required columns, with no database connection at build time. See [schema-checked SQL](docs/schema-snapshots.md).
 - **Strict at runtime.** NULL into a non-nullable member is an error naming the column; conversions are lossless only;
   no hidden retries; errors never contain parameter or row values.
 - **Explicit ownership.** VelQuery never closes your connection or commits your transaction; streams release
@@ -42,6 +45,19 @@ var cheap = await session.QueryAsync<Product>("SELECT Id, Name, Price FROM dbo.P
 static readonly SqlBulkInsertPlan<Product> Plan = SqlBulkInsertPlan<Product>.Create("dbo.Products")
     .Column("Name", p => p.Name).Column("Price", p => p.Price);
 long written = await session.BulkInsertAsync(Plan, products, ct);
+```
+
+Several commands in one round trip, and SQL Server table-valued parameters:
+
+```csharp
+IReadOnlyList<int> affected = await session.CreateBatch("orders.close")
+    .Add("UPDATE dbo.Orders SET Status = N'closed' WHERE Id = @Id", new QueryParameters().Add("Id", 42))
+    .Add("INSERT INTO dbo.Audit (OrderId, Action) VALUES (@Id, N'close')", new QueryParameters().Add("Id", 42))
+    .ExecuteAsync(ct);
+
+static readonly SqlTableType<int> IdList = SqlTableType<int>.Create("dbo.IdList").Column("Id", id => id);
+var some = await session.QueryAsync<Product>("SELECT p.Id, p.Name, p.Price FROM dbo.Products p JOIN @ids i ON i.Id = p.Id",
+                                             new QueryParameters().Add("ids", IdList.Rows(ids)), ct);
 ```
 
 A complete minimal API with a repository layer is in [samples/QuickStart](samples/QuickStart/README.md).
@@ -104,11 +120,12 @@ dotnet test --solution VelQuery.slnx     # integration tests need Docker (SQL Se
 - Requirements: [PRD v1.0](docs/prd/VelQuery_PRD_v1.0.md) and [amendment v1.1 (multi-database)](docs/prd/VelQuery_PRD_v1.1_Amendment.md)
 - Decisions: [architecture decision records](docs/architecture/adr/README.md)
 - Databases: [support tiers and roadmap](docs/database-support.md), [provider compatibility](docs/provider-compatibility.md)
-- Compiler diagnostics: [VQ1xxx reference](docs/diagnostics.md)
+- Compiler diagnostics: [VQ1xxx reference](docs/diagnostics.md); [schema-checked SQL and the `velquery` tool](docs/schema-snapshots.md)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) and conventions in [AGENTS.md](AGENTS.md)
 - Security: [SECURITY.md](SECURITY.md); changes: [CHANGELOG.md](CHANGELOG.md)
 - Reports: [status, performance, quality and security](docs/reports/README.md)
 
 ## License
 
-Apache-2.0 is proposed for the core (PRD §25); not yet finalized.
+Licensed under the [Apache License, Version 2.0](LICENSE). Copyright 2026 Nilesh Vishwakarma; see [NOTICE](NOTICE).
+The license does not grant permission to use the VelQuery name or marks (Apache-2.0 §6).

@@ -18,6 +18,16 @@ public sealed class ContractDiagnosticsTests
             """);
 
     [Fact]
+    public void Declared_tsql_variables_are_not_reported_as_undeclared_parameters()
+        => DiagnosticVerifier.Verify(UserRow + """
+            [VelQuerySql("users.recent", "DECLARE @since datetime2 = DATEADD(day, -@days, SYSUTCDATETIME()); SELECT Id, Name, Email FROM dbo.Users WHERE CreatedAt >= @since AND Name <> {|VQ1001:@Nmae|}")]
+            public static partial class RecentUsers
+            {
+                public static partial Task<IReadOnlyList<UserRow>> ExecuteAsync(IVelQuerySession session, int days, CancellationToken cancellationToken = default);
+            }
+            """);
+
+    [Fact]
     public void VQ1001_points_at_the_undeclared_placeholder()
         => DiagnosticVerifier.Verify(UserRow + """
             [VelQuerySql("users.by-id", "SELECT Id, Name, Email FROM dbo.Users WHERE Id = @Id AND Name = {|VQ1001:@Nmae|}")]
