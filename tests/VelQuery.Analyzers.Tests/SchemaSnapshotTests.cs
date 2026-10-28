@@ -207,6 +207,7 @@ public sealed class SchemaSnapshotTests
             + Contract(Raw + "SELECT \"Id\", \"Note\" FROM \"Audit\" " + Raw, "Task<IReadOnlyList<AuditRow>>", name: "C")
             + Contract("\"INSERT INTO products (name, price) VALUES (@n, @p) ON CONFLICT (name) DO UPDATE SET price = EXCLUDED.price RETURNING id\"", "Task<int>", ", string n, decimal p", "D", "Scalar")
             + Contract(Raw + "INSERT INTO \"Audit\" ({|VQ1030:\"Id\"|}, \"Note\") VALUES (1, @n) " + Raw, "Task<int>", ", string n", "E", "NonQuery")
+            + Contract(Raw + "INSERT INTO \"Audit\" (\"Id\", \"Note\") OVERRIDING SYSTEM VALUE VALUES (1, @n) " + Raw, "Task<int>", ", string n", "G", "NonQuery")
             + Contract("\"SELECT id, name, price FROM products WHERE created_at > now() - interval '1 day' AND name ILIKE @q\"", "Task<IReadOnlyList<Product>>", ", string q", "F"));
 
     // ---------------------------------------------------------------- VQ1011 and VQ1031

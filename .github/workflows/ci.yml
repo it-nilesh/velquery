@@ -38,7 +38,15 @@ jobs:
           dotnet list VelQuery.slnx package --vulnerable --include-transitive | tee vulnerable.txt
           if grep -q "has the following vulnerable packages" vulnerable.txt; then exit 1; fi
       - name: Test (unit, generators, analyzers, SQL Server, PostgreSQL, MySQL, SQLite, MongoDB)
-        run: dotnet test --solution VelQuery.slnx -c Release --no-build
+        # A TRX file per test project names every failed test with its message and stack trace.
+        run: dotnet test --solution VelQuery.slnx -c Release --no-build --report-xunit-trx --results-directory artifacts/test-results
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: artifacts/test-results
+          if-no-files-found: warn
       - name: Pack
         run: dotnet pack VelQuery.slnx -c Release --no-build -o artifacts/packages
       - uses: actions/upload-artifact@v4

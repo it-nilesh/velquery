@@ -158,6 +158,7 @@ public sealed class PostgreSqlEndToEndTests
         new("cx_delete_using", "DELETE FROM orders USING customers c WHERE c.id = orders.customer_id AND c.name = @name", "Task<int>", [], "NonQuery"),
         new("cx_casts_extract", "SELECT id, name FROM customers WHERE created_at::date <= current_date OR extract(year FROM created_at) > 2000", "Task<IReadOnlyList<IdName>>", []),
         new("cx_recursive", "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n WHERE x < 5) SELECT x AS id, 'n' AS name FROM n", "Task<IReadOnlyList<IdName>>", []),
+        new("cx_overriding_identity", "INSERT INTO orders (id, customer_id, total, status) OVERRIDING SYSTEM VALUE VALUES (100, @id, @total, @status)", "Task<int>", [], "NonQuery"),
         new("cx_right_join", "SELECT o.id, c.name FROM orders o RIGHT JOIN customers c ON c.id = o.customer_id", "Task<IReadOnlyList<IdName>>", ["VQ1026"]),
         new("cx_full_join", "SELECT c.id, c.name FROM customers c FULL JOIN orders o ON o.customer_id = c.id", "Task<IReadOnlyList<IdName>>", ["VQ1026", "VQ1026"]),
     ];
@@ -325,6 +326,7 @@ public sealed class SqlServerEndToEndTests
         new("cx_update_top", "UPDATE TOP (1) Customers SET Name = Name WHERE Id = @id", "Task<int>", [], "NonQuery"),
         new("cx_delete_output", "DELETE FROM Orders OUTPUT DELETED.Id WHERE Id = -1", "Task<IReadOnlyList<int>>", []),
         new("cx_temp_table_batch", "SELECT Id INTO #t FROM Customers; SELECT t.Id, c.Name FROM #t t JOIN Customers c ON c.Id = t.Id", "Task<IReadOnlyList<IdName>>", []),
+        new("cx_declare_batch", "DECLARE @since datetime2 = DATEADD(day, -1, SYSUTCDATETIME()); SELECT Id, Name FROM Customers WHERE CreatedAt >= @since OR Id = @id", "Task<IReadOnlyList<IdName>>", []),
         new("cx_set_batch", "SET NOCOUNT ON; SELECT Id, Name FROM Customers WHERE Id >= @id", "Task<IReadOnlyList<IdName>>", []),
         new("cx_merge", "MERGE Customers AS t USING (SELECT 1 AS Id) AS s ON t.Id = s.Id WHEN MATCHED THEN UPDATE SET t.Name = t.Name;", "Task<int>", ["VQ1011"], "NonQuery"),
         new("cx_right_join", "SELECT o.Id, c.Name FROM Orders o RIGHT JOIN Customers c ON c.Id = o.CustomerId", "Task<IReadOnlyList<IdName>>", ["VQ1026"]),

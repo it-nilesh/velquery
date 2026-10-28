@@ -52,6 +52,7 @@ property yourself when a project references several providers. Unset means `sqls
 | `sqlite` | `[...]`, backtick and `"..."` identifiers | non-nesting block comments; `?`, `?NNN`, `:name`, `$name` → VQ1022; spellings that differ in case are bound separately (SQLite binds case-sensitively) |
 | `generic` | `[...]`, backtick and `"..."` identifiers | `?`/`:name` → VQ1022 |
 
-Not understood in any dialect: `DECLARE @local` variables in T-SQL batches (reported as VQ1001) and SQL built inside
-`EXEC('...')`. Stored procedure contracts (`CommandType.StoredProcedure`) bind every method parameter by name and skip
+T-SQL batches may declare local variables: every `@name` declared with `DECLARE` (including table variables) is a
+variable of the batch, not a parameter; a placeholder in a declaration's initializer (`DECLARE @n int = @limit`) is still
+a parameter. Not understood in any dialect: SQL built inside `EXEC('...')`. Stored procedure contracts (`CommandType.StoredProcedure`) bind every method parameter by name and skip
 the scan.

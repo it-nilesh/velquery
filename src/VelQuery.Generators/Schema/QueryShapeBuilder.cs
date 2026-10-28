@@ -251,9 +251,11 @@ internal sealed class QueryShapeBuilder
         AddPseudoSources(scope, target);
         var columns = new List<SqlName>();
         var hasColumnList = false;
+        var columnReferencesStart = -1;
         if (i < e && _t[i].IsPunctuation('(') && !StartsQuery(i + 1))
         {
             hasColumnList = true;
+            columnReferencesStart = Scope(scope).References.Count;
             foreach (var (name, k) in ChainsIn(i + 1, _match[i]))
             {
                 columns.Add(name[name.Count - 1]);
@@ -280,7 +282,15 @@ internal sealed class QueryShapeBuilder
 
         if (i + 2 < e && _t[i].IsWord("OVERRIDING"))
         {
-            i += 3; // PostgreSQL OVERRIDING SYSTEM|USER VALUE
+            // PostgreSQL OVERRIDING SYSTEM|USER VALUE permits explicit values for GENERATED ALWAYS identity columns.
+            // The snapshot does not tell identity from computed columns, so the listed columns are not reported as
+            // generated writes (VQ1030); they are still checked for existence.
+            i += 3;
+            var references = Scope(scope).References;
+            for (var k = Math.Max(columnReferencesStart, 0); columnReferencesStart >= 0 && k < references.Count; k++)
+            {
+                references[k] = references[k] with { Write = false };
+            }
         }
 
         var allDefaults = false;

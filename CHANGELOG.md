@@ -34,6 +34,10 @@ versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor versi
   Write errors surface as `MongoWriteCommandException` (replaces the driver's `MongoBulkWriteException`/`MongoWriteException`
   as the inner exception).
 
+### Fixed
+- T-SQL batches that `DECLARE` local variables no longer report them as undeclared parameters (VQ1001).
+- PostgreSQL `INSERT ... OVERRIDING SYSTEM VALUE` no longer reports writes to identity columns (VQ1030).
+
 ### Security
 - Pinned `System.Security.Cryptography.Pkcs` 9.0.21 (CVE-2026-84008) for the Microsoft.Data.SqlClient dependency.
 

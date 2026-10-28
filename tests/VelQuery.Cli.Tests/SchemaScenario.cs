@@ -137,7 +137,15 @@ internal static partial class SchemaScenario
         }
     }
 
-    private static IEnumerable<string> Placeholders(string sql) => PlaceholderPattern().Matches(sql).Select(m => m.Groups[1].Value).Distinct(StringComparer.Ordinal);
+    /// <summary>Parameters to bind: <c>@name</c> placeholders except T-SQL variables the batch declares itself.</summary>
+    private static IEnumerable<string> Placeholders(string sql)
+    {
+        var declared = DeclaredPattern().Matches(sql).Select(m => m.Groups[1].Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return PlaceholderPattern().Matches(sql).Select(m => m.Groups[1].Value).Where(n => !declared.Contains(n)).Distinct(StringComparer.Ordinal);
+    }
+
+    [GeneratedRegex(@"DECLARE\s+@(\w+)", RegexOptions.IgnoreCase)]
+    private static partial Regex DeclaredPattern();
 
     private static string ParameterType(string name) => name switch
     {

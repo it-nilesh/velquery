@@ -34,6 +34,7 @@ The requirements baseline is [docs/prd/VelQuery_PRD_v1.0.md](docs/prd/VelQuery_P
 ```bash
 dotnet build VelQuery.slnx            # warnings are errors
 dotnet test --solution VelQuery.slnx  # integration tests need Docker (Testcontainers SQL Server, PostgreSQL, MySQL, MongoDB); SQLite needs none
+dotnet test --solution VelQuery.slnx --report-xunit-trx --results-directory artifacts/test-results  # keep per-test results
 ```
 
 - SDK is pinned in `global.json` (.NET 10). Package versions live only in `Directory.Packages.props`; never put
