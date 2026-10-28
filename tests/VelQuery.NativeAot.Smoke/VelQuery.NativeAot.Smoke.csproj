@@ -11,7 +11,7 @@
     <VelQuerySqlDialect>generic</VelQuerySqlDialect>
     <PublishAot>true</PublishAot>
     <!-- Every RID CI publishes, so locked-mode restore has the ILCompiler runtime packs for each. -->
-    <RuntimeIdentifiers>linux-x64;win-x64;osx-arm64</RuntimeIdentifiers>
+    <RuntimeIdentifiers>linux-x64;linux-arm64;win-x64;osx-arm64;osx-x64</RuntimeIdentifiers>
     <InvariantGlobalization>true</InvariantGlobalization>
     <TrimmerSingleWarn>false</TrimmerSingleWarn>
   </PropertyGroup>

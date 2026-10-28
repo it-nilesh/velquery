@@ -37,7 +37,9 @@ dotnet test --solution VelQuery.slnx  # integration tests need Docker (Testconta
 dotnet test --solution VelQuery.slnx --report-xunit-trx --results-directory artifacts/test-results  # keep per-test results
 ```
 
-- SDK is pinned in `global.json` (.NET 10). Package versions live only in `Directory.Packages.props`; never put
+- SDK is pinned exactly in `global.json` (.NET 10, `rollForward: disable`): the trimming/AOT packs in the lock files
+  follow the SDK version, so a different SDK breaks `--locked-mode` restore. To move to a new SDK, change `global.json`
+  and run `dotnet restore VelQuery.slnx --force-evaluate` in the same commit. Package versions live only in `Directory.Packages.props`; never put
   `Version=` on a `PackageReference`. Lock files are enabled: run `dotnet restore --force-evaluate` after changing packages.
 - Every new project must be added to `VelQuery.slnx`.
 
