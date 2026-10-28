@@ -6,6 +6,14 @@ versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor versi
 ## [Unreleased] — 0.1.0-alpha
 
 ### Added
+- **Schema-checked SQL** (ADR-0006): the build checks `[VelQuerySql]` contracts against an offline schema snapshot
+  (`*.vqschema.json`, format `velquery.schema.v1`) for unknown tables and columns (VQ1005), missing or duplicate result
+  columns (VQ1025, VQ1028), nullable and type mismatches (VQ1026, VQ1027) and INSERT/UPDATE write problems (VQ1029,
+  VQ1030); VQ1011 marks SQL outside the checked subset and VQ1031 an unusable snapshot. Diagnostics point at the name
+  inside the SQL string, also in multi-line raw strings. The build never contacts a database.
+- `VelQuery.Cli` dotnet tool (`velquery`): `schema snapshot` exports a deterministic snapshot from SQL Server,
+  PostgreSQL, MySQL/MariaDB or SQLite using catalog views only; `--check` and `schema diff` detect schema drift in CI
+  and classify breaking changes.
 - Core engine: `VelQueryDataSource`/`VelQuerySession` with explicit connection and transaction ownership, buffered,
   First/Single, scalar, execute, streaming and multi-result operations, per-call timeouts, strict lossless mapping and a
   value-free error contract.

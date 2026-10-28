@@ -3,4 +3,9 @@
   <ItemGroup>
     <CompilerVisibleProperty Include="VelQuerySqlDialect" />
   </ItemGroup>
+  <!-- Schema snapshots (*.vqschema.json, ADR-0006) in the project directory feed the build-time SQL checks.
+       Set EnableVelQuerySchemaSnapshots=false to opt out, or add AdditionalFiles items for snapshots elsewhere. -->
+  <ItemGroup Condition="'$(EnableVelQuerySchemaSnapshots)' != 'false'">
+    <AdditionalFiles Include="$(MSBuildProjectDirectory)/**/*.vqschema.json" Exclude="$(MSBuildProjectDirectory)/bin/**;$(MSBuildProjectDirectory)/obj/**" />
+  </ItemGroup>
 </Project>

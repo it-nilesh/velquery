@@ -30,6 +30,9 @@
   <ItemGroup>
     <CompilerVisibleProperty Include="VelQuerySqlDialect" />
   </ItemGroup>
+  <ItemGroup Condition="'$(EnableVelQuerySchemaSnapshots)' != 'false'">
+    <AdditionalFiles Include="$(MSBuildProjectDirectory)/**/*.vqschema.json" Exclude="$(MSBuildProjectDirectory)/bin/**;$(MSBuildProjectDirectory)/obj/**" />
+  </ItemGroup>
   <ItemGroup Condition="'$(IsPackable)' != 'false'">
     <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="/" Visible="false" />
   </ItemGroup>

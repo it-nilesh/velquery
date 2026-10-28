@@ -9,6 +9,7 @@ using Microsoft.CodeAnalysis.Text;
 using VelQuery.Generators.Diagnostics;
 using VelQuery.Generators.Infrastructure;
 using VelQuery.Generators.Model;
+using VelQuery.Generators.Schema;
 using VelQuery.Generators.Sql;
 
 namespace VelQuery.Generators.Analysis;
@@ -65,8 +66,8 @@ internal static class ContractParser
         var diagnostics = new List<DiagnosticInfo>();
         try
         {
-            var (model, row) = ParseCore(context, dialect, diagnostics, cancellationToken);
-            return new ContractResult(model, row, diagnostics.ToEquatableArray());
+            var (model, row, schemaCheck) = ParseCore(context, dialect, diagnostics, cancellationToken);
+            return new ContractResult(model, row, diagnostics.ToEquatableArray(), schemaCheck);
         }
         catch (OperationCanceledException)
         {
@@ -78,22 +79,22 @@ internal static class ContractParser
         {
             var location = LocationInfo.From((context.TargetNode as ClassDeclarationSyntax)?.Identifier.GetLocation() ?? context.TargetNode.GetLocation());
             diagnostics.Add(DiagnosticInfo.Create(Descriptors.GeneratorFailure, location, context.TargetSymbol.Name, ex.GetType().Name, ex.Message));
-            return new ContractResult(null, null, diagnostics.ToEquatableArray());
+            return new ContractResult(null, null, diagnostics.ToEquatableArray(), null);
         }
     }
 
-    private static (ContractModel? Model, RowPlan? Row) ParseCore(GeneratorAttributeSyntaxContext context, SqlDialect dialect, List<DiagnosticInfo> diagnostics, CancellationToken cancellationToken)
+    private static (ContractModel? Model, RowPlan? Row, SchemaCheckInput? SchemaCheck) ParseCore(GeneratorAttributeSyntaxContext context, SqlDialect dialect, List<DiagnosticInfo> diagnostics, CancellationToken cancellationToken)
     {
         if (context.TargetSymbol is not INamedTypeSymbol type || context.TargetNode is not ClassDeclarationSyntax classSyntax)
         {
-            return (null, null);
+            return (null, null, null);
         }
 
         var classLocation = LocationInfo.From(classSyntax.Identifier.GetLocation());
         var attribute = context.Attributes[0];
         if (attribute.ConstructorArguments.Length != 2 || attribute.ConstructorArguments.Any(a => a.Kind == TypedConstantKind.Error))
         {
-            return (null, null); // The compiler reports the malformed attribute.
+            return (null, null, null); // The compiler reports the malformed attribute.
         }
 
         var attributeSyntax = attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken) as AttributeSyntax;
@@ -177,7 +178,7 @@ internal static class ContractParser
                     ? "must be declared partial"
                     : $"must be declared in partial types, but containing type '{t.Name}' is not partial";
                 diagnostics.Add(DiagnosticInfo.Create(Descriptors.ContractTypeNotPartial, classLocation, type.Name, detail));
-                return (null, null); // Method diagnostics would only cascade from this one.
+                return (null, null, null); // Method diagnostics would only cascade from this one.
             }
         }
 
@@ -188,7 +189,7 @@ internal static class ContractParser
         if (methods.Count != 1)
         {
             diagnostics.Add(DiagnosticInfo.Create(Descriptors.ContractMethodCount, classLocation, type.Name, methods.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)));
-            return (null, null);
+            return (null, null, null);
         }
 
         var method = methods[0];
@@ -318,10 +319,11 @@ internal static class ContractParser
 
         if (!valid || operation is null || sessionName is null || queryId is null || sql is null)
         {
-            return (null, null);
+            return (null, null, null);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
+        var schemaCheck = SchemaInput(queryId, sql, dialect, commandType, operation.Value, rowType, rowTypeDisplay, rowPlan, sqlArgument, sqlLocation);
         var model = new ContractModel(
             HintName: HintName(type),
             Namespace: type.ContainingNamespace.IsGlobalNamespace ? null : type.ContainingNamespace.ToDisplayString(),
@@ -343,7 +345,43 @@ internal static class ContractParser
                 TypeFacts.Identifier(sessionName),
                 tokenName is null ? null : TypeFacts.Identifier(tokenName)),
             Bindings: bindings.ToEquatableArray());
-        return (model, rowPlan);
+        return (model, rowPlan, schemaCheck);
+    }
+
+    /// <summary>
+    /// Input to the schema snapshot checks (ADR-0006). The shape is built here, without the snapshot, so it is cached
+    /// with the contract and only the cheap matching step reruns when the snapshot changes.
+    /// </summary>
+    private static SchemaCheckInput SchemaInput(string queryId, string sql, SqlDialect dialect, int commandType, QueryOperation operation, ITypeSymbol? rowType, string? rowTypeDisplay, RowPlan? rowPlan, ExpressionSyntax? sqlArgument, LocationInfo? sqlLocation)
+    {
+        QueryShape? shape = null;
+        string? skip;
+        if (commandType == CommandTypeStoredProcedure)
+        {
+            skip = "stored procedures are not checked";
+        }
+        else
+        {
+            shape = QueryShapeBuilder.Build(sql, dialect, SqlSourceMap.Create(sqlArgument, sql), sqlLocation, out skip);
+        }
+
+        var members = new List<ResultMember>();
+        var scalar = false;
+        if (rowPlan is not null)
+        {
+            members.AddRange(rowPlan.Members.Select(m => new ResultMember(
+                m.Name, m.Column, m.Type, DbTypeRules.Target(m.ValueType, m.EnumCast is not null), m.IsNullable, m.Kind != MemberKind.Optional)));
+        }
+        else if (rowType is not null && operation != QueryOperation.Execute && TypeFacts.IsScalar(rowType))
+        {
+            scalar = true;
+            var underlying = TypeFacts.NullableUnderlying(rowType) ?? rowType;
+            members.Add(new ResultMember(string.Empty, string.Empty, TypeFacts.Display(rowType),
+                DbTypeRules.Target(TypeFacts.DisplayNoAnnotations(underlying), underlying.TypeKind == TypeKind.Enum), TypeFacts.AcceptsNull(rowType), Required: true));
+        }
+
+        return new SchemaCheckInput(queryId, dialect, shape, skip, rowPlan is null ? null : rowTypeDisplay, members.ToEquatableArray(), scalar,
+            operation != QueryOperation.Execute, sqlLocation);
     }
 
     private static (QueryOperation? Operation, ITypeSymbol? RowType) ResolveOperation(IMethodSymbol method, int cardinality, LocationInfo? location, List<DiagnosticInfo> diagnostics)

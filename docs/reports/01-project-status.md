@@ -14,6 +14,7 @@ five working database integrations, a source generator per query language, bench
 | SQL providers: SQL Server, PostgreSQL, MySQL/MariaDB, SQLite + generic ADO.NET tier | Done — **Preview** |
 | MongoDB adapter (first non-relational database) | Done — **Preview** |
 | Build-time checks: `[VelQuerySql]` (VQ1xxx, dialect-aware) and `[VelQueryMongo*]` (VQ2xxx) | Done |
+| Schema-checked SQL: snapshot export (`velquery` tool), build-time table/column/type/nullability checks, drift check | Done — verified end to end on all four SQL engines |
 | Native bulk insert for every database | Done |
 | Native AOT | Verified for SQLite, PostgreSQL, MySQL; blocked for SQL Server and MongoDB by their drivers |
 | CI pipeline | Written, **not run** (repository not hosted) |
@@ -33,8 +34,9 @@ production-ready until it runs in CI against real servers and passes the PRD's r
 | `VelQuery.MySql` | MySqlConnector provider (MySQL and MariaDB), LOAD DATA bulk insert with silent-row-drop protection |
 | `VelQuery.Sqlite` | Microsoft.Data.Sqlite provider, native type conversions, statement interruption on cancel |
 | `VelQuery.MongoDB` | MongoDB adapter: typed contracts, generated BSON serializers, transactions, command-based writes |
-| `VelQuery.Generators` / `VelQuery.MongoDB.Generators` / `VelQuery.Analyzers` | Build-time code generation and diagnostics (35 rules) |
-| `samples/QuickStart` | Minimal API + data library with a repository layer |
+| `VelQuery.Generators` / `VelQuery.MongoDB.Generators` / `VelQuery.Analyzers` | Build-time code generation and diagnostics (44 rules) |
+| `VelQuery.Cli` | `velquery` tool: schema snapshot export and drift diff (ADR-0006) |
+| `samples/QuickStart` | Minimal API + data library with a repository layer and a committed schema snapshot |
 | `benchmarks/` | BenchmarkDotNet suites plus CPU, allocation and bulk profiles |
 
 Size: about 14,700 lines of library code and 17,800 lines of tests; 38 commits; 12 architecture decision records.

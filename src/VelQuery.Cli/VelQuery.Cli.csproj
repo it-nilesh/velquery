@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>VelQuery.Cli</RootNamespace>
+    <AssemblyName>velquery</AssemblyName>
+    <Description>VelQuery command-line tool: exports offline schema snapshots for build-time SQL checks and compares them with a live database.</Description>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>velquery</ToolCommandName>
+    <PackageId>VelQuery.Cli</PackageId>
+    <!-- Not invariant globalization: Microsoft.Data.SqlClient refuses to open connections in that mode. -->
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.SqlClient" />
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="MySqlConnector" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="VelQuery.Cli.Tests" />
+  </ItemGroup>
+</Project>

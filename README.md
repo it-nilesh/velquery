@@ -10,6 +10,9 @@ strict runtime semantics and native bulk ingestion. Not an ORM.
 ## Why VelQuery
 
 - **Mistakes fail the build.** A misspelled `@parameter` is error VQ1001; SQL built by string interpolation is VQ1008.
+- **SQL checked against your real schema.** Export a schema snapshot once (`velquery schema snapshot`) and the build
+  reports unknown tables and columns, result columns your types need, nullable and type mismatches, and INSERTs that
+  miss required columns, with no database connection at build time. See [schema-checked SQL](docs/schema-snapshots.md).
 - **Strict at runtime.** NULL into a non-nullable member is an error naming the column; conversions are lossless only;
   no hidden retries; errors never contain parameter or row values.
 - **Explicit ownership.** VelQuery never closes your connection or commits your transaction; streams release
@@ -104,7 +107,7 @@ dotnet test --solution VelQuery.slnx     # integration tests need Docker (SQL Se
 - Requirements: [PRD v1.0](docs/prd/VelQuery_PRD_v1.0.md) and [amendment v1.1 (multi-database)](docs/prd/VelQuery_PRD_v1.1_Amendment.md)
 - Decisions: [architecture decision records](docs/architecture/adr/README.md)
 - Databases: [support tiers and roadmap](docs/database-support.md), [provider compatibility](docs/provider-compatibility.md)
-- Compiler diagnostics: [VQ1xxx reference](docs/diagnostics.md)
+- Compiler diagnostics: [VQ1xxx reference](docs/diagnostics.md); [schema-checked SQL and the `velquery` tool](docs/schema-snapshots.md)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) and conventions in [AGENTS.md](AGENTS.md)
 - Security: [SECURITY.md](SECURITY.md); changes: [CHANGELOG.md](CHANGELOG.md)
 - Reports: [status, performance, quality and security](docs/reports/README.md)

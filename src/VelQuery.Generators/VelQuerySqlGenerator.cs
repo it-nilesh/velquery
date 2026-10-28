@@ -9,6 +9,7 @@ using VelQuery.Generators.Analysis;
 using VelQuery.Generators.Emit;
 using VelQuery.Generators.Infrastructure;
 using VelQuery.Generators.Model;
+using VelQuery.Generators.Schema;
 
 namespace VelQuery.Generators;
 
@@ -39,6 +40,12 @@ public sealed class VelQuerySqlGenerator : IIncrementalGenerator
 
         /// <summary>Collected, de-duplicated row mapping plans.</summary>
         public const string RowPlans = "VelQuery.RowPlans";
+
+        /// <summary>The parsed schema snapshot (<c>*.vqschema.json</c> additional file).</summary>
+        public const string SchemaSnapshot = "VelQuery.SchemaSnapshot";
+
+        /// <summary>Per-contract schema snapshot diagnostics.</summary>
+        public const string SchemaChecks = "VelQuery.SchemaChecks";
     }
 
     private const string AttributeName = "VelQuery.VelQuerySqlAttribute";
@@ -71,6 +78,25 @@ public sealed class VelQuerySqlGenerator : IIncrementalGenerator
             }
         });
 
+        // Schema snapshot checks (ADR-0006): diagnostics only, so neither the snapshot nor the checks affect generated
+        // code. The snapshot is an additional file; the build never reads a database (VQ-FR-035).
+        var snapshot = context.AdditionalTextsProvider
+            .Where(static file => SchemaSnapshotReader.IsSnapshotPath(file.Path))
+            .Select(static (file, cancellationToken) => (file.Path, file.GetText(cancellationToken)?.ToString()))
+            .Collect()
+            .Select(static (files, _) => SchemaSnapshotReader.Read(files.OrderBy(f => f.Path, StringComparer.Ordinal).ToList()))
+            .WithTrackingName(TrackingNames.SchemaSnapshot);
+        context.RegisterSourceOutput(snapshot.Select(static (s, _) => s.Problems), ReportAll);
+
+        var catalog = snapshot.Select(static (s, _) => s.Snapshot is null ? null : new SchemaCatalog(s.Snapshot));
+        var schemaChecks = contracts
+            .Select(static (c, _) => c.SchemaCheck)
+            .Where(static c => c is not null)
+            .Combine(catalog)
+            .Select(static (pair, _) => SchemaChecker.Check(pair.Left!, pair.Right))
+            .WithTrackingName(TrackingNames.SchemaChecks);
+        context.RegisterSourceOutput(schemaChecks, ReportAll);
+
         var models = contracts
             .Select(static (c, _) => c.Model)
             .Where(static m => m is not null)
@@ -98,6 +124,14 @@ public sealed class VelQuerySqlGenerator : IIncrementalGenerator
 
             spc.AddSource("VelQuery.Generated.RowMapperRegistrations.g.cs", SourceText.From(EmitRegistrations(plans), System.Text.Encoding.UTF8));
         });
+    }
+
+    private static void ReportAll(SourceProductionContext context, EquatableArray<DiagnosticInfo> diagnostics)
+    {
+        foreach (var diagnostic in diagnostics)
+        {
+            context.ReportDiagnostic(diagnostic.ToDiagnostic());
+        }
     }
 
     private static EquatableArray<RowPlan> Distinct(ImmutableArray<RowPlan?> plans)

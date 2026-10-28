@@ -25,11 +25,14 @@ internal static class DiagnosticVerifier
 
         """;
 
-    public static void Verify(string markup)
+    public static void Verify(string markup) => Verify(markup, null, []);
+
+    /// <summary>Verifies with a project dialect and additional files (for example a schema snapshot).</summary>
+    public static void Verify(string markup, string? dialect, params (string Path, string Text)[] additionalFiles)
     {
         var (source, expected) = Parse(Usings + markup);
         var compilation = GeneratorHarness.Compile(source);
-        var actual = GeneratorHarness.GetVelQueryDiagnostics(compilation, new DynamicSqlAnalyzer())
+        var actual = GeneratorHarness.GetVelQueryDiagnostics(compilation, dialect, additionalFiles, new DynamicSqlAnalyzer())
             .Where(d => d.Id.StartsWith("VQ", StringComparison.Ordinal))
             .Select(d => (d.Id, d.Location.SourceSpan, Text: Slice(source, d.Location.SourceSpan), d.GetMessage(System.Globalization.CultureInfo.InvariantCulture)))
             .ToList();
@@ -41,8 +44,8 @@ internal static class DiagnosticVerifier
     }
 
     /// <summary>Returns the messages of reported VelQuery diagnostics (for message-content assertions).</summary>
-    public static IReadOnlyList<string> Messages(string source)
-        => GeneratorHarness.GetVelQueryDiagnostics(GeneratorHarness.Compile(Usings + source), new DynamicSqlAnalyzer())
+    public static IReadOnlyList<string> Messages(string source, string? dialect = null, params (string Path, string Text)[] additionalFiles)
+        => GeneratorHarness.GetVelQueryDiagnostics(GeneratorHarness.Compile(Usings + source), dialect, additionalFiles, new DynamicSqlAnalyzer())
             .Where(d => d.Id.StartsWith("VQ", StringComparison.Ordinal))
             .Select(d => d.Id + ": " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))
             .ToList();
