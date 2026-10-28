@@ -39,6 +39,7 @@ public static class DbTypeInference
             _ when type == typeof(DateOnly) => DbType.Date,
             _ when type == typeof(TimeOnly) => DbType.Time,
             _ when type == typeof(byte[]) => DbType.Binary,
+            _ when typeof(IProviderParameterValue).IsAssignableFrom(type) => DbType.Object,
             _ => null,
         };
     }

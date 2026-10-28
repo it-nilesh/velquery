@@ -15,6 +15,14 @@ versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor versi
   `[VelQuerySql(Schema = "...")]` (VQ1033 for an unknown name); stored procedure contracts are checked against the
   snapshot's procedures and parameters; VQ1032 (info) shows unknown names that may be columns instead of hiding them.
   Snapshots now include stored procedures and functions (`routines`), and `schema diff` compares them.
+- Command batches: `session.CreateBatch(id).Add(sql, parameters)...ExecuteAsync()` sends several commands in one round
+  trip (`DbBatch`) on SQL Server and PostgreSQL and returns each command's affected rows as the driver reports them.
+  MySQL (whose driver reports only a batch total) and SQLite run the commands one at a time on one connection. New
+  `ProviderCapabilities.Batches`.
+- SQL Server table-valued parameters: `SqlTableType<T>.Create("dbo.IdList").Column(...)` and `.Rows(items)` stream
+  rows without a `DataTable` (AOT-safe), for runtime SQL and generated contracts (new `IProviderParameterValue`).
+- Benchmarks: EF Core 10 (pooled context, no tracking, compiled queries). It allocates 1.3–2.6× VelQuery per query;
+  time differences were within the error of the short run.
 - `VelQuery.Cli` dotnet tool (`velquery`): `schema snapshot` exports a deterministic snapshot from SQL Server,
   PostgreSQL, MySQL/MariaDB or SQLite using catalog views only; `--check` and `schema diff` detect schema drift in CI
   and classify breaking changes.

@@ -73,5 +73,7 @@ Size: about 14,700 lines of library code and 17,800 lines of tests; 38 commits; 
 
 1. Host the repository and let CI run (build, all suites on x64 Linux with SQL Server 2022, AOT smoke on three OSes).
 2. Publish a signed 0.1.0-alpha to a private feed and onboard the first design partner with the QuickStart sample.
-3. Add EF Core to the benchmarks so comparisons cover the most common alternative.
-4. Round-trip features that cut database trips further: table-valued parameters and `DbBatch`.
+3. A full benchmark run (default job) on an uncontended x64 SQL Server 2022 host, to resolve time against EF Core and
+   the open stream-100k gap. EF Core is now in the suite: it allocates 1.3–2.6× VelQuery per query.
+4. Done since the last report: EF Core benchmarks, command batches (`DbBatch`), SQL Server table-valued parameters,
+   schema checks for stored procedures and several databases per project.

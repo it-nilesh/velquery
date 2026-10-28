@@ -24,7 +24,7 @@ public sealed class PostgreSqlProvider : IVelQueryProvider
 
     /// <inheritdoc />
     public ProviderCapabilities Capabilities =>
-        ProviderCapabilities.MultipleResults | ProviderCapabilities.StoredProcedures | ProviderCapabilities.OutputParameters;
+        ProviderCapabilities.MultipleResults | ProviderCapabilities.StoredProcedures | ProviderCapabilities.OutputParameters | ProviderCapabilities.Batches;
 
     /// <summary>
     /// Npgsql binds <c>@name</c> placeholders to parameters named <c>name</c>, so the logical name is used as-is.

@@ -31,6 +31,9 @@ public class OneRowProjection : BenchmarkBase
     [Benchmark(Description = "velquery-runtime-sql")]
     public Task<BenchRow?> VelQueryRuntimeSql() => VelQueryRuntimeSqlQueries.OneRowAsync(DataSource, Id);
 
+    [Benchmark(Description = "efcore-compiled")]
+    public Task<BenchRow?> EfCoreCompiled() => EfCoreQueries.OneRowAsync(EfCore, Id);
+
     protected override async Task VerifyAsync()
     {
         var expected = Describe(await RawAdoNet());
@@ -38,6 +41,7 @@ public class OneRowProjection : BenchmarkBase
         Expect(expected, Describe(await DapperAot()), "dapper-aot");
         Expect(expected, Describe(await VelQueryDescriptor()), "velquery-descriptor");
         Expect(expected, Describe(await VelQueryRuntimeSql()), "velquery-runtime-sql");
+        Expect(expected, Describe(await EfCoreCompiled()), "efcore-compiled");
     }
 }
 
@@ -60,6 +64,9 @@ public class ScalarCount : BenchmarkBase
     [Benchmark(Description = "velquery-runtime-sql")]
     public Task<int> VelQueryRuntimeSql() => VelQueryRuntimeSqlQueries.ScalarCountAsync(DataSource);
 
+    [Benchmark(Description = "efcore-compiled")]
+    public Task<int> EfCoreCompiled() => EfCoreQueries.ScalarCountAsync(EfCore);
+
     protected override async Task VerifyAsync()
     {
         var expected = await RawAdoNet();
@@ -68,6 +75,7 @@ public class ScalarCount : BenchmarkBase
         Expect(expected, await DapperAot(), "dapper-aot");
         Expect(expected, await VelQueryDescriptor(), "velquery-descriptor");
         Expect(expected, await VelQueryRuntimeSql(), "velquery-runtime-sql");
+        Expect(expected, await EfCoreCompiled(), "efcore-compiled");
     }
 }
 
@@ -95,6 +103,9 @@ public class Buffered : BenchmarkBase
     [Benchmark(Description = "velquery-runtime-sql")]
     public async Task<int> VelQueryRuntimeSql() => (await VelQueryRuntimeSqlQueries.BufferedAsync(DataSource, Sql)).Count;
 
+    [Benchmark(Description = "efcore-compiled")]
+    public async Task<int> EfCoreCompiled() => (await EfCoreQueries.BufferedAsync(EfCore, Rows)).Count;
+
     protected override async Task VerifyAsync()
     {
         var expected = Fingerprint(await Libraries.RawAdoNet.BufferedAsync(ConnectionString, Sql));
@@ -102,6 +113,7 @@ public class Buffered : BenchmarkBase
         Expect(expected, Fingerprint(await DapperAotQueries.BufferedAsync(ConnectionString, Sql)), "dapper-aot");
         Expect(expected, Fingerprint(await VelQueryDescriptorQueries.BufferedAsync(DataSource, Rows)), "velquery-descriptor");
         Expect(expected, Fingerprint(await VelQueryRuntimeSqlQueries.BufferedAsync(DataSource, Sql)), "velquery-runtime-sql");
+        Expect(expected, Fingerprint(await EfCoreQueries.BufferedAsync(EfCore, Rows)), "efcore-compiled");
     }
 
     private static string Fingerprint(IEnumerable<BenchRow> rows) => string.Join('\n', rows.Select(Describe));
@@ -128,6 +140,9 @@ public class Stream100k : BenchmarkBase
     [Benchmark(Description = "velquery-runtime-sql")]
     public Task<long> VelQueryRuntimeSql() => VelQueryRuntimeSqlQueries.StreamAsync(DataSource);
 
+    [Benchmark(Description = "efcore-compiled")]
+    public Task<long> EfCoreCompiled() => EfCoreQueries.StreamAsync(EfCore);
+
     protected override async Task VerifyAsync()
     {
         const long expected = (long)BenchDatabase.RowCount * (BenchDatabase.RowCount + 1) / 2;
@@ -136,6 +151,7 @@ public class Stream100k : BenchmarkBase
         Expect(expected, await DapperAot(), "dapper-aot");
         Expect(expected, await VelQueryDescriptor(), "velquery-descriptor");
         Expect(expected, await VelQueryRuntimeSql(), "velquery-runtime-sql");
+        Expect(expected, await EfCoreCompiled(), "efcore-compiled");
     }
 }
 
@@ -161,6 +177,9 @@ public class TypedParams : BenchmarkBase
     [Benchmark(Description = "velquery-runtime-sql")]
     public Task<BenchRow?> VelQueryRuntimeSql() => VelQueryRuntimeSqlQueries.TypedParamsAsync(DataSource, TypedValues);
 
+    [Benchmark(Description = "efcore-compiled")]
+    public Task<BenchRow?> EfCoreCompiled() => EfCoreQueries.TypedParamsAsync(EfCore, TypedValues);
+
     protected override async Task VerifyAsync()
     {
         var expected = Describe(await RawAdoNet());
@@ -169,5 +188,6 @@ public class TypedParams : BenchmarkBase
         Expect(expected, Describe(await DapperAot()), "dapper-aot");
         Expect(expected, Describe(await VelQueryDescriptor()), "velquery-descriptor");
         Expect(expected, Describe(await VelQueryRuntimeSql()), "velquery-runtime-sql");
+        Expect(expected, Describe(await EfCoreCompiled()), "efcore-compiled");
     }
 }

@@ -47,6 +47,19 @@ static readonly SqlBulkInsertPlan<Product> Plan = SqlBulkInsertPlan<Product>.Cre
 long written = await session.BulkInsertAsync(Plan, products, ct);
 ```
 
+Several commands in one round trip, and SQL Server table-valued parameters:
+
+```csharp
+IReadOnlyList<int> affected = await session.CreateBatch("orders.close")
+    .Add("UPDATE dbo.Orders SET Status = N'closed' WHERE Id = @Id", new QueryParameters().Add("Id", 42))
+    .Add("INSERT INTO dbo.Audit (OrderId, Action) VALUES (@Id, N'close')", new QueryParameters().Add("Id", 42))
+    .ExecuteAsync(ct);
+
+static readonly SqlTableType<int> IdList = SqlTableType<int>.Create("dbo.IdList").Column("Id", id => id);
+var some = await session.QueryAsync<Product>("SELECT p.Id, p.Name, p.Price FROM dbo.Products p JOIN @ids i ON i.Id = p.Id",
+                                             new QueryParameters().Add("ids", IdList.Rows(ids)), ct);
+```
+
 A complete minimal API with a repository layer is in [samples/QuickStart](samples/QuickStart/README.md).
 
 ## Databases

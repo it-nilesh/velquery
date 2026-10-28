@@ -2,6 +2,7 @@ using System;
 using System.Data;
 using System.Data.Common;
 using System.Threading;
+using System.Threading.Tasks;
 using VelQuery.Mapping;
 using VelQuery.Parameters;
 using Xunit;
@@ -18,6 +19,15 @@ public abstract class IntegrationTest(SqlServerFixture fixture)
     protected VelQueryDataSource DataSource(VelQueryOptions? options = null) => Fixture.CreateDataSource(options);
 
     protected VelQuerySession Session(VelQueryOptions? options = null) => Fixture.CreateDataSource(options).CreateSession();
+
+    /// <summary>Creates a uniquely named table in the test database and returns its name.</summary>
+    protected async Task<string> CreateTableAsync(string columns)
+    {
+        var table = "dbo.t_" + Guid.NewGuid().ToString("N");
+        await using var session = Session();
+        await session.ExecuteAsync($"CREATE TABLE {table} ({columns})", cancellationToken: Ct);
+        return table;
+    }
 
     /// <summary>A data source with its own small SqlClient pool so leaks surface as pool timeouts.</summary>
     protected VelQueryDataSource IsolatedPoolDataSource(int maxPoolSize, string poolTag, int connectTimeoutSeconds = 5)

@@ -271,7 +271,11 @@ public sealed class MySqlEndToEndTests
     [Fact]
     public async Task Exported_snapshot_checks_match_what_mysql_executes()
     {
-        await using var container = new MySqlBuilder("mysql:8.4").WithDatabase("shop").Build();
+        await using var container = new MySqlBuilder("mysql:8.4").WithDatabase("shop")
+            // The whole solution's suites start their databases in parallel; keep this one small (no performance schema,
+            // 32 MB buffer pool) so a 2 GB Docker VM does not kill it (exit 137).
+            .WithCommand("--performance-schema=OFF", "--innodb-buffer-pool-size=33554432")
+            .Build();
         await container.StartAsync(TestContext.Current.CancellationToken);
         var connectionString = container.GetConnectionString();
         await using (var connection = new MySqlConnection(connectionString))
@@ -366,6 +370,7 @@ public sealed class SqlServerEndToEndTests
         var image = RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "mcr.microsoft.com/azure-sql-edge:latest" : "mcr.microsoft.com/mssql/server:2022-latest";
         await using var container = new MsSqlBuilder(image)
             .WithPassword("VelQuery_Cli#2026")
+            .WithEnvironment("MSSQL_MEMORY_LIMIT_MB", "1024") // Shares the Docker VM with the other suites' databases.
             .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("SQL Server is now ready for client connections"))
             .Build();
         await container.StartAsync(TestContext.Current.CancellationToken);

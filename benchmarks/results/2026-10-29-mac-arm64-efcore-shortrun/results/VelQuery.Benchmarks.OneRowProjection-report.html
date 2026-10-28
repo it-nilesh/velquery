@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>VelQuery.Benchmarks.OneRowProjection-20261029-004640</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, macOS Tahoe 26.5.1 (25F80) [Darwin 25.5.0]
+Apple M5 Pro, 1 CPU, 15 logical and 15 physical cores
+.NET SDK 10.0.201
+  [Host]   : .NET 10.0.5 (10.0.5, 10.0.526.15411), Arm64 RyuJIT armv8.0-a
+  ShortRun : .NET 10.0.5 (10.0.5, 10.0.526.15411), Arm64 RyuJIT armv8.0-a
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  Categories=one-row-projection  
+</code></pre>
+
+<table>
+<thead><tr><th>Method        </th><th>Mean</th><th>Error</th><th>StdDev</th><th>P95</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>raw-adonet</td><td>359.6 &mu;s</td><td>151.53 &mu;s</td><td>8.31 &mu;s</td><td>367.7 &mu;s</td><td>1.00</td><td>0.03</td><td>0.4883</td><td>6.1 KB</td><td>1.00</td>
+</tr><tr><td>dapper</td><td>354.9 &mu;s</td><td>110.56 &mu;s</td><td>6.06 &mu;s</td><td>360.8 &mu;s</td><td>0.99</td><td>0.02</td><td>0.4883</td><td>7.86 KB</td><td>1.29</td>
+</tr><tr><td>dapper-aot</td><td>357.8 &mu;s</td><td>222.37 &mu;s</td><td>12.19 &mu;s</td><td>369.9 &mu;s</td><td>1.00</td><td>0.04</td><td>0.4883</td><td>6.75 KB</td><td>1.11</td>
+</tr><tr><td>velquery-descriptor</td><td>355.8 &mu;s</td><td>137.42 &mu;s</td><td>7.53 &mu;s</td><td>363.0 &mu;s</td><td>0.99</td><td>0.03</td><td>0.4883</td><td>6.81 KB</td><td>1.12</td>
+</tr><tr><td>velquery-runtime-sql</td><td>354.0 &mu;s</td><td>36.37 &mu;s</td><td>1.99 &mu;s</td><td>355.9 &mu;s</td><td>0.98</td><td>0.02</td><td>0.4883</td><td>7.14 KB</td><td>1.17</td>
+</tr><tr><td>efcore-compiled</td><td>355.5 &mu;s</td><td>100.25 &mu;s</td><td>5.50 &mu;s</td><td>360.7 &mu;s</td><td>0.99</td><td>0.02</td><td>0.9766</td><td>8.81 KB</td><td>1.44</td>
+</tr></tbody></table>
+</body>
+</html>

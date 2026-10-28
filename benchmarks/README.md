@@ -1,6 +1,6 @@
 # VelQuery benchmarks
 
-BenchmarkDotNet suite comparing **raw ADO.NET**, **Dapper**, **Dapper.AOT** and **VelQuery** on SQL Server
+BenchmarkDotNet suite comparing **raw ADO.NET**, **Dapper**, **Dapper.AOT**, **EF Core** and **VelQuery** on SQL Server
 (PRD §14.1–14.2, §29 item 3). The suite contract is [`suites/core.yaml`](suites/core.yaml); the executable form is
 [`VelQuery.Benchmarks`](VelQuery.Benchmarks).
 
@@ -17,6 +17,7 @@ BenchmarkDotNet suite comparing **raw ADO.NET**, **Dapper**, **Dapper.AOT** and 
 | `dapper-aot` | Identical call sites in a `[DapperAot(true)]` class: replaced at build time by Dapper.AOT interceptors |
 | `velquery-descriptor` | Generated `[VelQuerySql]` contracts: VelQuery.Generators emits the binders and the `BenchRow` mapper (ordinals resolved once per reader, typed getters, columns read in order so `SequentialAccess` is used) |
 | `velquery-runtime-sql` | `session.QueryAsync<T>(sql, QueryParameters)` etc.; the same mapper registered through `RowMappers<T>.Register` (no reflection fallback) |
+| `efcore-compiled` | EF Core 10 in its fastest common setup: pooled `DbContext` factory, `NoTracking`, compiled queries, explicit column types. EF writes its own SQL, so the "query-text-identical" control does not apply to it |
 
 Cases: `one-row-projection`, `scalar-count`, `buffered-100`, `buffered-1000`, `stream-100k` (warmup 2, 5 iterations),
 `typed-params`. The SQL text for each case is in [`Model.cs`](VelQuery.Benchmarks/Model.cs) and the manifest.

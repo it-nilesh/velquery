@@ -20,6 +20,8 @@ public abstract class BenchmarkBase
 
     protected TypedParamValues TypedValues { get; private set; } = null!;
 
+    protected Microsoft.EntityFrameworkCore.Infrastructure.PooledDbContextFactory<BenchContext> EfCore { get; private set; } = null!;
+
     [GlobalSetup]
     public void GlobalSetup() => SetupAsync().GetAwaiter().GetResult();
 
@@ -32,6 +34,7 @@ public abstract class BenchmarkBase
         // Logging/diagnostics off; strict mapping on (VelQuery defaults). No dynamic fallback: the runtime-SQL variant
         // must resolve the mapper the generated module initializer registered.
         DataSource = VelQuerySqlServer.CreateDataSource(ConnectionString, new VelQueryOptions { AllowDynamicFallback = false });
+        EfCore = EfCoreQueries.CreateFactory(ConnectionString);
 
         TypedValues = await ReadTypedValuesAsync(ConnectionString);
         await VerifyAsync();

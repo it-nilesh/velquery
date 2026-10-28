@@ -1,0 +1,22 @@
+{
+  "suite": "velquery.query-core.v1",
+  "capturedAtUtc": "2026-10-28T19:15:11.8157130Z",
+  "runtime": ".NET 10.0.5",
+  "os": "macOS 26.5.1",
+  "processArchitecture": "Arm64",
+  "processorCount": "15",
+  "gc": "workstation",
+  "database.source": "testcontainers: mcr.microsoft.com/azure-sql-edge:1.0.7",
+  "database.productVersion": "15.0.2000.1574",
+  "database.edition": "Azure SQL Edge Developer (64-bit)",
+  "database.version": "Microsoft Azure SQL Edge Developer (RTM) - 15.0.2000.1574 (ARM64)  \tJan 25 2023 10:36:08  \tCopyright (C) 2019 Microsoft Corporation \tLinux (Ubuntu 18.04.6 LTS aarch64) <ARM64>",
+  "database.dataSource": "127.0.0.1,32842",
+  "database.rows": "100000",
+  "database.seed": "20261010",
+  "pooling": "Pooling=True;Min=0;Max=100;MARS=False",
+  "driver.Microsoft.Data.SqlClient": "7.1.1+29ce2d856cb5a9450f79ea62c0afc744fd337fde",
+  "Dapper": "2.1.89+eb47546a40",
+  "Dapper.AOT": "1.1.0+0e071bf05e",
+  "BenchmarkDotNet": "0.15.8+1e8238ef6c08e18821edae83ac8d6b0a2bb1bb98",
+  "VelQuery.Core": "0.1.0-alpha+08c230cdb1c10aface05a38422a2f7e5283f479d"
+}

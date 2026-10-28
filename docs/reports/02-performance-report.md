@@ -36,6 +36,21 @@ VelQuery allocates the least on buffered queries and ties for least on streaming
 Changes: sequential column reads, pooled buffers for buffered results, a synchronous fast path for streaming, and no
 per-column NULL check for non-nullable members.
 
+### Compared with EF Core
+
+EF Core 10 in its fastest common configuration (pooled `DbContext`, no tracking, compiled queries), short run of
+2026-10-29 ([environment and full table](../../benchmarks/results/2026-10-29-mac-arm64-efcore-shortrun/environment.md)).
+Allocated bytes are exact; the time differences in that run are within the error, so no time comparison is made.
+
+| Query | VelQuery (generated) | EF Core (compiled) | EF Core / VelQuery |
+|---|---|---|---|
+| One row | 6.8 KB | 8.8 KB | 1.3× |
+| Count | 4.5 KB | 5.7 KB | 1.3× |
+| 100 rows | 27.1 KB | 58.5 KB | 2.2× |
+| 1,000 rows | 225 KB | 569 KB | 2.5× |
+| Stream 100,000 rows | 21.7 MB | 55.4 MB | 2.6× |
+| 5 typed parameters | 8.5 KB | 10.9 KB | 1.3× |
+
 ## 2. Client CPU per operation (relative to raw ADO.NET = 1.00)
 
 | Case | Dapper | Dapper.AOT | **VelQuery** (generated / runtime SQL) |
@@ -82,4 +97,6 @@ limit (`maxTimeMS`). Reads are at parity with the driver, with about 10% less al
 - **Fixed:** an early SQL Server bulk design cost 12.5 s of CPU per 1M rows because of SqlClient's async path with
   custom readers; switching to staged batches brought it to raw-driver level.
 - **Fixed:** MongoDB bulk insert was 5% slower than the driver; now 34% faster.
-- **Not measured yet:** EF Core, p99 latency under concurrency, CPU under sustained parallel load.
+- **EF Core:** allocates 1.3–2.6× VelQuery per query (see §1). Time against EF Core is not yet resolved: it needs a
+  full run on an uncontended x64 SQL Server 2022 host.
+- **Not measured yet:** p99 latency under concurrency, CPU under sustained parallel load.
